@@ -1,8 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // Standalone (no explicit `types`): Vercel's Hono builder compiles with this file and fails with
-  // TS2688 when `types: ["node"]` cannot be resolved in its build location. Without the field,
-  // TypeScript auto-includes the installed @types packages (locally: @types/node).
+  // Vercel's Node builder compiles through a temporary tsconfig in the OS temp dir that extends
+  // this file, so type roots must be pinned relative to this file or @types/node is not found.
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["es2023"],
@@ -18,7 +17,9 @@
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types"]
   },
   "include": ["src", "*.ts"],
   "exclude": ["node_modules", "dist"]
