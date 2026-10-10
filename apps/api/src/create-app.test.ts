@@ -36,7 +36,9 @@ describe("api v1", () => {
       paths: Record<string, unknown>;
     };
     expect(doc.openapi).toBe("3.1.0");
-    expect(Object.keys(doc.paths)).toEqual(expect.arrayContaining(["/v1/health", "/v1/categories"]));
+    expect(Object.keys(doc.paths)).toEqual(
+      expect.arrayContaining(["/v1/health", "/v1/categories", "/v1/reviews", "/v1/reviews/{slug}", "/v1/products"]),
+    );
   });
 
   it("returns JSON 404s and applies CORS to allowed origins only", async () => {

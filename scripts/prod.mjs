@@ -12,11 +12,23 @@ const FILE = ".env.production.local";
 
 /** Which variables each Vercel project receives. Secrets are stored as "sensitive" (write-only). */
 const PROJECTS = {
-  "ai-review-web": ["DATABASE_URL", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "REVALIDATE_SECRET"],
-  "ai-review-cms": ["DATABASE_URL", "BETTER_AUTH_SECRET", "REVALIDATE_SECRET", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "TRIGGER_SECRET_KEY"],
-  "ai-review-api": ["DATABASE_URL", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
+  "ai-review-web": ["DATABASE_URL", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "REVALIDATE_SECRET", "NEXT_PUBLIC_MEDIA_URL"],
+  "ai-review-cms": [
+    "DATABASE_URL",
+    "BETTER_AUTH_SECRET",
+    "REVALIDATE_SECRET",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "TRIGGER_SECRET_KEY",
+    // Section regeneration and name -> URL lookup run inside the CMS.
+    "ANTHROPIC_API_KEY",
+    "FIRECRAWL_API_KEY",
+    "VOYAGE_API_KEY",
+    "NEXT_PUBLIC_MEDIA_URL",
+  ],
+  "ai-review-api": ["DATABASE_URL", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "NEXT_PUBLIC_MEDIA_URL"],
 };
-const NOT_SECRET = new Set(["UPSTASH_REDIS_REST_URL"]);
+const NOT_SECRET = new Set(["UPSTASH_REDIS_REST_URL", "NEXT_PUBLIC_MEDIA_URL"]);
 
 function loadEnv() {
   let text;

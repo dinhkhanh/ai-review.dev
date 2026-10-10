@@ -228,6 +228,55 @@ and Upstash credentials on Vercel, two domains, the Trigger.dev project, R2 API 
 - Cost ledger + per-job totals (FR-ANL-3 ledger), Plausible (FR-ANL-1).
 - Exit: SRS §8 acceptance criteria pass on 5 real products across 2 categories.
 
+### Phase 1 status (2026-10-10)
+
+Built and verified locally (lint, types, unit/integration tests, production builds, a live run on
+a real product):
+
+- **Pipeline** (`packages/pipeline`): 14 persisted, resumable steps orchestrated by
+  `runReviewJob` (resolve → crawl/third-party/affiliate in parallel → chunk/embed → extract → fact
+  sheet → competitors → SEO brief → write → fact-check with repair → style pass → graphics → QA).
+  Retry resumes from the last succeeded step; "re-run from step" marks downstream steps stale.
+  Versioned prompts in `src/prompts`, CMS overrides and per-step model/effort settings.
+- **Affiliate engine**: link builder and resolver with 100 % branch coverage, `/go/:slug` with
+  country/priority/weight/date-window selection, vendor+UTM fallback, SubIDs, cookieless click
+  logging after the response, Redis-cached link table, redirect-forbidden programs linked
+  directly, disclosure and `rel="sponsored"` enforced by the renderer, 13-month click retention.
+- **Web**: home, reviews list/search, review pages (ISR, JSON-LD validated before publish, sticky
+  mobile CTA, sources, verified dates, report-a-change), categories, authors, policy pages,
+  sitemap index + per-type sitemaps, RSS, IndexNow key and ping, media route for DB storage.
+- **CMS**: intake with name→URL candidates and duplicate→refresh, jobs with step timeline/logs/
+  costs and retry/re-run/cancel, products (identity, fact-sheet editor and diff, sources,
+  affiliate programs/links, media alt text), article editor (block forms, section regenerate with
+  instruction + fact-check, preview desktop/mobile, QA scorecard, fact-check claims, SEO, versions
+  with diff/rollback, comments, state machine, publish/schedule), affiliate workspace, visitor
+  reports, editable settings/prompts/rubrics/authors, integration status.
+- **API**: `/v1/reviews`, `/v1/reviews/{slug}` (portable blocks), `/v1/products`,
+  `/v1/products/{slug}`, `/v1/categories/{slug}`; OpenAPI committed in `packages/contracts` with a
+  generated typed client (`@repo/contracts/client`) and a drift test.
+
+Live verification (local DB, real APIs, product plausible.io): first run $1.74 / 20 min; refresh
+produced fact sheet v2 with a 17-field diff and a new version of the same article (no duplicates).
+Fact-check flagged 18 problems, repaired 14 and blocked publishing on the rest until edited; after
+the editor fix the page published with valid JSON-LD, disclosure, six placement-coded CTAs and
+sources. Moving claim verification to Sonnet with focused evidence cut fact-check cost from $2.20
+to $0.53 per article (≈ $1.7 per quick review overall). Still open for the SRS §8 exit: run five
+products across two categories in production once the worker is deployed.
+
+Deviations and decisions:
+
+- Media goes to R2 when configured; otherwise to Postgres (`media_blobs`) served by the web app.
+- Public pages render the **published version**; pipeline refreshes and edits create new versions
+  that go live only when published (`articles.published_version_id`).
+- No consent banner: analytics is cookieless (Plausible) and click logging stores no cookies or
+  raw IPs. Add a banner before introducing any cookie-setting script.
+- Comparison, alternatives, best-of and deals endpoints/pages wait for those content types
+  (Phase 2). Prompts are TypeScript modules rather than `.md` files (bundling for the worker).
+- Model-facing schemas are kept flat; nested per-field wrappers exceeded the structured-output
+  grammar limit (caught by the live run; `check-schemas` script added).
+- Embeddings and Firecrawl degrade gracefully: embedding errors fall back to full-text retrieval,
+  Firecrawl calls are paced (`FIRECRAWL_RPM`) and retried on rate limits.
+
 ### Phase 2 — Scale and monetise harder (2026-11-17 → 2026-12-19, ~5 weeks)
 
 - Video pipeline: script, TTS, Remotion short + long, YouTube upload with disclosure flag, embed (FR-VID-1..5).

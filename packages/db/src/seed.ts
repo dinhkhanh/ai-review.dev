@@ -14,6 +14,27 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   "costs.targetPerReviewUsd": { quick: 5, full: 12 }, // NFR-6
   "costs.alertMultiplier": 2,
   "editorial.aiDisclosure": "Researched with AI assistance and reviewed by our editor.",
+  "editorial.styleGuide": "",
+  "editorial.bannedPhrases": [
+    "in today's fast-paced world",
+    "game-changer",
+    "game changer",
+    "revolutionize",
+    "unlock the power",
+    "seamlessly",
+    "delve",
+    "elevate your",
+    "look no further",
+    "whether you're a",
+    "in the ever-evolving",
+    "harness the power",
+    "cutting-edge",
+    "robust solution",
+    "it's worth noting",
+    "at the end of the day",
+  ],
+  "pipeline.stepModels": {},
+  "qa.thresholds": { maxReadingGrade: 11, maxSourceOverlap: 0.08, minWords: 1200 },
 };
 
 /** Idempotent: safe to run on every deploy. Never overwrites values edited in the CMS. */

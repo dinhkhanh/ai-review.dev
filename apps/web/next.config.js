@@ -17,6 +17,23 @@ const nextConfig = {
     // Type-checking runs in the `check-types` task (tsc 7); skip the duplicate pass in `next build`.
     ignoreBuildErrors: true,
   },
+  async rewrites() {
+    // IndexNow key file must live at the site root (FR-WEB-4).
+    return [{ source: "/:key([a-f0-9]{32}).txt", destination: "/api/indexnow-key/:key" }];
+  },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

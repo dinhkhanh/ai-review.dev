@@ -10,14 +10,17 @@
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
-    "openapi": "tsx --env-file-if-exists=../../.env src/scripts/print-openapi.ts"
+    "openapi": "tsx --env-file-if-exists=../../.env src/scripts/print-openapi.ts",
+    "generate-client": "pnpm run openapi && pnpm dlx --package=typescript@5.9.3 --package=openapi-typescript@7.13.0 openapi-typescript ../../packages/contracts/openapi.json -o ../../packages/contracts/src/generated/v1.ts && prettier --write ../../packages/contracts/openapi.json ../../packages/contracts/src/generated/v1.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.4",
     "@hono/zod-openapi": "1.6.3",
+    "@repo/content": "workspace:*",
     "@repo/contracts": "workspace:*",
     "@repo/core": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/media": "workspace:*",
     "@scalar/hono-api-reference": "0.12.11",
     "hono": "4.13.13",
     "zod": "4.6.5"
@@ -27,6 +30,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "26.6.4",
     "eslint": "10.9.1",
+    "prettier": "3.9.6",
     "tsup": "8.5.1",
     "tsx": "4.23.15",
     "typescript": "7.0.2",

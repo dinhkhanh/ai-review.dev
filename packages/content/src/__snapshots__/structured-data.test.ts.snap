@@ -1,0 +1,75 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`structured data > matches the snapshot and validates 1`] = `
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "applicationCategory": "Productivity",
+    "image": "https://media.ai-review.dev/og.png",
+    "name": "Notion",
+    "offers": {
+      "@type": "Offer",
+      "price": 0,
+      "priceCurrency": "USD",
+    },
+    "operatingSystem": "Web, macOS, iOS",
+    "review": {
+      "@type": "Review",
+      "author": {
+        "@type": "Person",
+        "name": "Editor",
+        "url": "https://ai-review.dev/authors/editor",
+      },
+      "dateModified": "2026-10-11T00:00:00.000Z",
+      "datePublished": "2026-10-10T00:00:00.000Z",
+      "name": "Notion Review 2026",
+      "publisher": {
+        "@type": "Organization",
+        "name": "AI Review",
+        "url": "https://ai-review.dev",
+      },
+      "reviewRating": {
+        "@type": "Rating",
+        "bestRating": 10,
+        "ratingValue": 8.4,
+        "worstRating": 0,
+      },
+      "url": "https://ai-review.dev/reviews/notion",
+    },
+    "url": "https://notion.so",
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, for individuals.",
+        },
+        "name": "Is Notion free?",
+      },
+    ],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "item": "https://ai-review.dev",
+        "name": "Home",
+        "position": 1,
+      },
+      {
+        "@type": "ListItem",
+        "item": "https://ai-review.dev/reviews/notion",
+        "name": "Notion Review",
+        "position": 2,
+      },
+    ],
+  },
+]
+`;

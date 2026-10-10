@@ -47,6 +47,8 @@ export const reviewJobs = pgTable(
     totalCostUsd: numeric("total_cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
     /** Orchestrator run id (Trigger.dev) for deep links from the CMS. */
     runId: text("run_id"),
+    /** The article this job produced or refreshed. */
+    articleId: uuid("article_id"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     error: text("error"),
@@ -74,6 +76,11 @@ export const jobSteps = pgTable(
     tokensOut: integer("tokens_out").notNull().default(0),
     costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
     error: text("error"),
+    /** Structured log lines written by the step (FR-CMS-3). */
+    logs: jsonb("logs")
+      .$type<Array<{ ts: string; message: string; data?: Record<string, unknown> }>>()
+      .notNull()
+      .default([]),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     ...timestamps(),

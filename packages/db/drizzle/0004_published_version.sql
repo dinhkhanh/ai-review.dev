@@ -1,0 +1,1 @@
+ALTER TABLE "articles" ADD COLUMN "published_version_id" uuid;

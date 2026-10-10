@@ -1,5 +1,18 @@
-import type { ArticleBody, QaScorecard, Seo } from "@repo/content";
-import { index, integer, jsonb, pgEnum, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import type { ArticleBody, FactCheckReport, QaScorecard, Seo, SeoBrief } from "@repo/content";
+import {
+  boolean,
+  customType,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { DEFAULT_LOCALE, id, timestamps } from "./_shared";
 import { products } from "./catalog";
 
@@ -18,6 +31,9 @@ export const mediaKind = pgEnum("media_kind", ["image", "screenshot", "graphic",
 export const mediaOrigin = pgEnum("media_origin", ["generated", "templated", "captured", "vendor", "uploaded"]);
 export const videoKind = pgEnum("video_kind", ["short", "long"]);
 export const videoStatus = pgEnum("video_status", ["draft", "rendering", "ready", "published", "failed"]);
+export const mediaStorage = pgEnum("media_storage", ["r2", "db"]);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 export const authors = pgTable("authors", {
   id: id(),
@@ -42,11 +58,16 @@ export const articles = pgTable(
     /** Primary product for reviews; comparisons/lists use `productIds`. */
     productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
     productIds: uuid("product_ids").array().notNull().default([]),
+    /** Latest version (what the editor and pipeline work on). */
     currentVersionId: uuid("current_version_id"),
+    /** Version shown on the public site; only publishing moves it (C-6). */
+    publishedVersionId: uuid("published_version_id"),
     authorId: uuid("author_id").references(() => authors.id, { onDelete: "set null" }),
     scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    /** SEO brief the article was written from (FR-CON-1); reused when regenerating sections. */
+    brief: jsonb("brief").$type<SeoBrief>(),
     ...timestamps(),
   },
   (t) => [
@@ -69,6 +90,7 @@ export const articleVersions = pgTable(
     seo: jsonb("seo").$type<Seo>(),
     overallScore: real("overall_score"),
     qaScorecard: jsonb("qa_scorecard").$type<QaScorecard>(),
+    factCheck: jsonb("fact_check").$type<FactCheckReport>(),
     promptVersions: jsonb("prompt_versions").$type<Record<string, string>>(),
     createdByJobId: uuid("created_by_job_id"),
     createdByUserId: text("created_by_user_id"),
@@ -85,6 +107,8 @@ export const mediaAssets = pgTable(
     kind: mediaKind("kind").notNull(),
     origin: mediaOrigin("origin").notNull(),
     storageKey: text("storage_key").notNull().unique(),
+    /** Where the bytes live: R2 in production, the `media_blobs` table as a no-credentials fallback. */
+    storage: mediaStorage("storage").notNull().default("r2"),
     mimeType: text("mime_type").notNull(),
     width: integer("width"),
     height: integer("height"),
@@ -97,9 +121,39 @@ export const mediaAssets = pgTable(
     alt: text("alt"),
     licenseNote: text("license_note"),
     productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
+    articleId: uuid("article_id"),
+    /** Free-form role, e.g. "og", "pricing_card", "screenshot:pricing:mobile". */
+    role: text("role"),
+    capturedAt: timestamp("captured_at", { withTimezone: true }),
     ...timestamps(),
   },
-  (t) => [index("media_assets_product_idx").on(t.productId)],
+  (t) => [index("media_assets_product_idx").on(t.productId), index("media_assets_article_idx").on(t.articleId)],
+);
+
+/** Object bytes for the `db` storage driver (original + variants share this table by key). */
+export const mediaBlobs = pgTable("media_blobs", {
+  key: text("key").primaryKey(),
+  data: bytea("data").notNull(),
+  mimeType: text("mime_type").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Inline review comments on an article version (FR-QA-3). */
+export const articleComments = pgTable(
+  "article_comments",
+  {
+    id: id(),
+    articleId: uuid("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade" }),
+    versionId: uuid("version_id"),
+    blockId: text("block_id"),
+    body: text("body").notNull(),
+    authorUserId: text("author_user_id"),
+    resolved: boolean("resolved").notNull().default(false),
+    ...timestamps(),
+  },
+  (t) => [index("article_comments_article_idx").on(t.articleId)],
 );
 
 export const videos = pgTable("videos", {

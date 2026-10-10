@@ -1,6 +1,8 @@
-import type { FactSheet } from "@repo/content";
+import type { FactSheet, ProductProfile } from "@repo/content";
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -16,6 +18,8 @@ import {
   vector,
 } from "drizzle-orm/pg-core";
 import { DEFAULT_LOCALE, id, timestamps } from "./_shared";
+
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const productStatus = pgEnum("product_status", ["draft", "active", "discontinued", "archived"]);
 export const sourceKind = pgEnum("source_kind", ["official", "aggregator", "community", "video", "news", "other"]);
@@ -56,6 +60,8 @@ export const products = pgTable(
     status: productStatus("status").notNull().default("draft"),
     /** Refresh cadence in days (FR-MNT-1). */
     refreshIntervalDays: smallint("refresh_interval_days").notNull().default(60),
+    /** Resolved URLs (pricing, docs, logo, socials) from intake (FR-INT-3). */
+    profile: jsonb("profile").$type<ProductProfile>(),
     lastResearchedAt: timestamp("last_researched_at", { withTimezone: true }),
     ...timestamps(),
   },
@@ -121,11 +127,15 @@ export const researchChunks = pgTable(
     text: text("text").notNull(),
     tokenCount: integer("token_count"),
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
+    /** Keyword fallback for retrieval when no embedding provider is configured. */
+    tsv: tsvector("tsv").generatedAlwaysAs(sql`to_tsvector('english', "text")`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("research_chunks_product_idx").on(t.productId),
     index("research_chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+    index("research_chunks_tsv_idx").using("gin", t.tsv),
+    uniqueIndex("research_chunks_source_ord_uq").on(t.sourceId, t.ord),
   ],
 );
 

@@ -31,7 +31,10 @@
         "NEXT_PUBLIC_API_URL",
         "NEXT_PUBLIC_MEDIA_URL",
         "NEXT_PUBLIC_SENTRY_DSN",
-        "VERCEL"
+        "VERCEL",
+        "NEXT_PUBLIC_PLAUSIBLE_DOMAIN",
+        "INDEXNOW_KEY",
+        "FIRECRAWL_RPM"
       ]
     },
     "lint": {

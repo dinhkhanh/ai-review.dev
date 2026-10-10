@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./openapi.json": "./openapi.json"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
@@ -12,6 +14,8 @@
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
+    "@repo/content": "workspace:*",
+    "openapi-fetch": "0.17.0",
     "zod": "4.6.5"
   },
   "devDependencies": {

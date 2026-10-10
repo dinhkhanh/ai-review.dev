@@ -12,6 +12,21 @@ export const settingSchemas = {
   "costs.targetPerReviewUsd": z.object({ quick: z.number().positive(), full: z.number().positive() }),
   "costs.alertMultiplier": z.number().min(1),
   "editorial.aiDisclosure": z.string().min(1).max(300),
+  /** House style guide injected into writing prompts (FR-CON-6). */
+  "editorial.styleGuide": z.string().max(20_000),
+  /** Phrases the style pass removes and QA flags (FR-CON-6). */
+  "editorial.bannedPhrases": z.array(z.string().min(1)).max(500),
+  /** Per-step model/effort overrides (FR-CMS-7). Steps fall back to their prompt defaults. */
+  "pipeline.stepModels": z.record(
+    z.string(),
+    z.object({ model: z.string().min(1), effort: z.enum(["low", "medium", "high", "xhigh", "max"]) }),
+  ),
+  /** QA thresholds (FR-QA-1). */
+  "qa.thresholds": z.object({
+    maxReadingGrade: z.number().min(4).max(20),
+    maxSourceOverlap: z.number().min(0).max(1),
+    minWords: z.number().int().min(0),
+  }),
 } as const;
 
 export type SettingKey = keyof typeof settingSchemas;

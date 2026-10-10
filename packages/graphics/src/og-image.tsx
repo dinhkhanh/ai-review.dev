@@ -1,23 +1,9 @@
-import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+/** @jsxRuntime automatic */
+/** @jsxImportSource react */
 import { Resvg } from "@resvg/resvg-js";
 import { scoreBand, tokens } from "@repo/ui/tokens";
 import satori from "satori";
-
-const require = createRequire(import.meta.url);
-
-let fontsPromise: Promise<Array<{ name: string; data: Buffer; weight: 400 | 700; style: "normal" }>> | null = null;
-
-function loadFonts() {
-  fontsPromise ??= Promise.all([
-    readFile(require.resolve("@fontsource/inter/files/inter-latin-400-normal.woff")),
-    readFile(require.resolve("@fontsource/inter/files/inter-latin-700-normal.woff")),
-  ]).then(([regular, bold]) => [
-    { name: "Inter", data: regular, weight: 400 as const, style: "normal" as const },
-    { name: "Inter", data: bold, weight: 700 as const, style: "normal" as const },
-  ]);
-  return fontsPromise;
-}
+import { loadFonts } from "./fonts";
 
 export interface OgImageInput {
   title: string;

@@ -4,26 +4,35 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./editor": "./src/editor.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check-schemas": "tsx --env-file-if-exists=../../.env scripts/check-schemas.ts"
   },
   "dependencies": {
+    "@repo/affiliate": "workspace:*",
     "@repo/ai": "workspace:*",
     "@repo/content": "workspace:*",
     "@repo/core": "workspace:*",
-    "zod": "4.6.5",
-    "@repo/db": "workspace:*"
+    "@repo/db": "workspace:*",
+    "@repo/graphics": "workspace:*",
+    "@repo/media": "workspace:*",
+    "robots-parser": "3.0.1",
+    "tldts": "7.4.18",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "26.6.4",
     "eslint": "10.9.1",
+    "sharp": "0.35.5",
     "typescript": "7.0.2",
-    "vitest": "5.0.3"
+    "vitest": "5.0.3",
+    "tsx": "4.23.15"
   }
 }

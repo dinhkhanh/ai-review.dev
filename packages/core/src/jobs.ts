@@ -1,4 +1,4 @@
-import { and, desc, eq, jobSteps, reviewJobs, sql, type DbOrTx } from "@repo/db";
+import { and, desc, eq, inArray, jobSteps, products, reviewJobs, sql, type DbOrTx } from "@repo/db";
 import { DomainError } from "./errors";
 
 type JobPreset = (typeof reviewJobs.preset.enumValues)[number];
@@ -110,5 +110,104 @@ export async function getJob(db: DbOrTx, jobId: string) {
 }
 
 export async function listJobs(db: DbOrTx, limit = 50) {
-  return db.select().from(reviewJobs).orderBy(desc(reviewJobs.createdAt)).limit(Math.min(limit, 200));
+  return db
+    .select({
+      id: reviewJobs.id,
+      preset: reviewJobs.preset,
+      status: reviewJobs.status,
+      input: reviewJobs.input,
+      productId: reviewJobs.productId,
+      productName: products.name,
+      articleId: reviewJobs.articleId,
+      totalCostUsd: reviewJobs.totalCostUsd,
+      error: reviewJobs.error,
+      createdAt: reviewJobs.createdAt,
+      startedAt: reviewJobs.startedAt,
+      finishedAt: reviewJobs.finishedAt,
+    })
+    .from(reviewJobs)
+    .leftJoin(products, eq(products.id, reviewJobs.productId))
+    .orderBy(desc(reviewJobs.createdAt))
+    .limit(Math.min(limit, 200));
+}
+
+export async function setJobLinks(db: DbOrTx, jobId: string, links: { productId?: string; articleId?: string }) {
+  await db.update(reviewJobs).set(links).where(eq(reviewJobs.id, jobId));
+}
+
+type StepRow = typeof jobSteps.$inferSelect;
+
+/** Latest attempt of every step in a job, keyed by step name. */
+export async function latestStepRuns(db: DbOrTx, jobId: string): Promise<Map<string, StepRow>> {
+  const rows = await db.select().from(jobSteps).where(eq(jobSteps.jobId, jobId)).orderBy(jobSteps.attempt);
+  const latest = new Map<string, StepRow>();
+  for (const row of rows) latest.set(row.name, row);
+  return latest;
+}
+
+/**
+ * Marks the latest succeeded attempts of these steps as stale (SRS §7: re-running a step makes
+ * downstream steps stale); the orchestrator then runs a fresh attempt instead of reusing them.
+ */
+export async function markStepsStale(db: DbOrTx, jobId: string, names: readonly string[]) {
+  if (names.length === 0) return;
+  const latest = await latestStepRuns(db, jobId);
+  const ids = names
+    .map((n) => latest.get(n))
+    .filter((r): r is StepRow => !!r && r.status === "succeeded")
+    .map((r) => r.id);
+  if (ids.length) await db.update(jobSteps).set({ status: "stale" }).where(inArray(jobSteps.id, ids));
+}
+
+export async function appendStepLogs(
+  db: DbOrTx,
+  stepId: string,
+  lines: Array<{ ts: string; message: string; data?: Record<string, unknown> }>,
+) {
+  if (lines.length === 0) return;
+  await db
+    .update(jobSteps)
+    .set({ logs: sql`${jobSteps.logs} || ${JSON.stringify(lines)}::jsonb` })
+    .where(eq(jobSteps.id, stepId));
+}
+
+/** Requests cancellation; the orchestrator checks between steps. */
+export async function cancelJob(db: DbOrTx, jobId: string) {
+  await db
+    .update(reviewJobs)
+    .set({ status: "cancelled", finishedAt: new Date() })
+    .where(
+      and(eq(reviewJobs.id, jobId), inArray(reviewJobs.status, ["queued", "running", "awaiting_approval", "failed"])),
+    );
+}
+
+export async function isJobCancelled(db: DbOrTx, jobId: string) {
+  const [row] = await db
+    .select({ status: reviewJobs.status })
+    .from(reviewJobs)
+    .where(eq(reviewJobs.id, jobId))
+    .limit(1);
+  return row?.status === "cancelled";
+}
+
+/** Re-queues a finished job so the orchestrator picks it up again (retry / re-run from a step). */
+export async function requeueJob(db: DbOrTx, jobId: string) {
+  await db
+    .update(reviewJobs)
+    .set({ status: "queued", error: null, finishedAt: null, runId: null })
+    .where(eq(reviewJobs.id, jobId));
+}
+
+/**
+ * Atomically claims the oldest queued job not handed to Trigger.dev (local runner). `skip locked`
+ * lets several runners poll safely.
+ */
+export async function claimNextQueuedJob(db: DbOrTx) {
+  const rows = await db.execute<{ id: string }>(sql`
+    update review_jobs set status = 'running', started_at = coalesce(started_at, now()), updated_at = now()
+    where id = (
+      select id from review_jobs where status = 'queued' and run_id is null order by created_at for update skip locked limit 1
+    )
+    returning id`);
+  return rows[0]?.id ?? null;
 }

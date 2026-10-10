@@ -7,13 +7,15 @@
     "./styles.css": "./src/styles.css",
     "./tokens": "./src/tokens.ts",
     "./cn": "./src/cn.ts",
-    "./*": "./src/components/*.tsx"
+    "./*": "./src/components/*.tsx",
+    "./article": "./src/article/index.tsx"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/content": "workspace:*",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "react": "19.3.0",

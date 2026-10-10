@@ -7,6 +7,8 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { categoriesRoutes } from "./routes/categories";
 import { healthRoutes } from "./routes/health";
+import { productsRoutes } from "./routes/products";
+import { reviewsRoutes } from "./routes/reviews";
 
 export type AppEnv = { Variables: { db: Database } };
 
@@ -16,7 +18,7 @@ export interface CreateAppOptions {
   allowedOrigins?: string[];
 }
 
-/** Public REST API (apps/api). Read-only in Phase 0; mobile and web client features use it. */
+/** Public REST API (apps/api, FR-API-1/2). Read-only; consumed by the mobile app and web client features. */
 export function createApp(options: CreateAppOptions) {
   const app = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
@@ -46,6 +48,8 @@ export function createApp(options: CreateAppOptions) {
 
   app.route("/v1", healthRoutes);
   app.route("/v1", categoriesRoutes);
+  app.route("/v1", reviewsRoutes);
+  app.route("/v1", productsRoutes);
 
   app.doc31("/openapi.json", {
     openapi: "3.1.0",
@@ -54,7 +58,10 @@ export function createApp(options: CreateAppOptions) {
       version: API_VERSION,
       description: "Public read API for ai-review.dev web and mobile clients.",
     },
-    servers: [{ url: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3002" }],
+    servers: [
+      { url: "https://api.ai-review.dev", description: "Production" },
+      { url: "http://localhost:3002", description: "Local development" },
+    ],
   });
   app.get("/docs", Scalar({ url: "/openapi.json", pageTitle: "AI Review API" }));
   app.get("/", (c) => c.redirect("/docs"));

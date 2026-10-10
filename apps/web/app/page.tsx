@@ -1,13 +1,18 @@
-import { listCategories } from "@repo/core";
+import { listCategoriesWithCounts, listPublishedReviews } from "@repo/core";
 import { getDb } from "@repo/db";
-import { Card, CardDescription, CardTitle } from "@repo/ui/card";
-import { SITE } from "../lib-site";
+import Link from "next/link";
+import { ReviewGrid } from "../components/review-card";
+import { SITE } from "../lib/site";
 
-// ISR: rebuilt at most every 5 minutes; publishing will also revalidate by tag (FR-WEB-2).
+// ISR; publishing also revalidates "/" on demand (FR-WEB-2).
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const categories = await listCategories(getDb());
+  const db = getDb();
+  const [reviews, categories] = await Promise.all([
+    listPublishedReviews(db, { limit: 12 }),
+    listCategoriesWithCounts(db),
+  ]);
   return (
     <div className="mx-auto max-w-6xl px-4">
       <section className="py-16 sm:py-24">
@@ -16,19 +21,46 @@ export default async function HomePage() {
           Find the right software before you pay for it.
         </h1>
         <p className="mt-4 max-w-2xl text-lg text-muted">{SITE.description}</p>
+        <p className="mt-4 max-w-2xl text-sm text-muted">
+          Every review cites its sources, shows the date we verified prices, and is checked by our editor.{" "}
+          <Link href="/editorial-policy" className="underline">
+            How we review
+          </Link>
+        </p>
       </section>
 
-      <section aria-labelledby="categories-heading">
+      {reviews.length > 0 ? (
+        <section aria-labelledby="latest-heading">
+          <div className="flex items-baseline justify-between">
+            <h2 id="latest-heading" className="text-xl font-semibold">
+              Latest reviews
+            </h2>
+            <Link href="/reviews" className="text-sm text-brand hover:underline">
+              All reviews →
+            </Link>
+          </div>
+          <div className="mt-6">
+            <ReviewGrid reviews={reviews} />
+          </div>
+        </section>
+      ) : null}
+
+      <section aria-labelledby="categories-heading" className="mt-16">
         <h2 id="categories-heading" className="text-xl font-semibold">
           Browse by category
         </h2>
         <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {categories.map((c) => (
-            <li key={c.id}>
-              <Card className="h-full">
-                <CardTitle>{c.name}</CardTitle>
-                {c.description ? <CardDescription>{c.description}</CardDescription> : null}
-              </Card>
+            <li key={c.id} className="relative rounded-lg border border-border bg-bg p-5 hover:border-brand/50">
+              <h3 className="text-base font-semibold">
+                <Link href={`/categories/${c.slug}`} className="after:absolute after:inset-0">
+                  {c.name}
+                </Link>
+              </h3>
+              {c.description ? <p className="mt-1 text-sm text-muted">{c.description}</p> : null}
+              <p className="mt-3 text-xs text-muted">
+                {c.reviews} review{c.reviews === 1 ? "" : "s"}
+              </p>
             </li>
           ))}
         </ul>

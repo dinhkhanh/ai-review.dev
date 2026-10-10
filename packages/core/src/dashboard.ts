@@ -3,8 +3,10 @@ import {
   articles,
   auditLog,
   clicks,
+  conversions,
   costLedger,
   count,
+  inArray,
   desc,
   eq,
   gte,
@@ -22,6 +24,8 @@ export interface DashboardStats {
   articlesPublished: number;
   clicksToday: number;
   spendThisMonthUsd: number;
+  /** Approved/paid commissions in the last 30 days (filled once conversions are imported, FR-AFF-11). */
+  revenue30dUsd: number;
 }
 
 /** CMS dashboard counters (FR-CMS-2). Times are UTC. */
@@ -30,7 +34,8 @@ export async function getDashboardStats(db: DbOrTx, now = new Date()): Promise<D
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const dayAgo = new Date(now.getTime() - 24 * 3600 * 1000);
 
-  const [[p], [running], [failed], [review], [published], [clicksToday], [spend]] = await Promise.all([
+  const monthAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+  const [[p], [running], [failed], [review], [published], [clicksToday], [spend], [revenue]] = await Promise.all([
     db.select({ n: count() }).from(products),
     db.select({ n: count() }).from(reviewJobs).where(eq(reviewJobs.status, "running")),
     db
@@ -47,6 +52,10 @@ export async function getDashboardStats(db: DbOrTx, now = new Date()): Promise<D
       .select({ total: sql<string>`coalesce(sum(${costLedger.costUsd}), 0)` })
       .from(costLedger)
       .where(gte(costLedger.createdAt, startOfMonth)),
+    db
+      .select({ total: sql<string>`coalesce(sum(${conversions.commission}), 0)` })
+      .from(conversions)
+      .where(and(gte(conversions.occurredAt, monthAgo), inArray(conversions.status, ["approved", "paid"]))),
   ]);
 
   return {
@@ -57,6 +66,7 @@ export async function getDashboardStats(db: DbOrTx, now = new Date()): Promise<D
     articlesPublished: published?.n ?? 0,
     clicksToday: clicksToday?.n ?? 0,
     spendThisMonthUsd: Number(spend?.total ?? 0),
+    revenue30dUsd: Number(revenue?.total ?? 0),
   };
 }
 

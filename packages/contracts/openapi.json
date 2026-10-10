@@ -1,0 +1,1677 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AI Review API",
+    "version": "1.1.0",
+    "description": "Public read API for ai-review.dev web and mobile clients."
+  },
+  "servers": [
+    {
+      "url": "https://api.ai-review.dev",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3002",
+      "description": "Local development"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ok", "degraded"]
+          },
+          "db": {
+            "type": "string",
+            "enum": ["ok", "error"]
+          },
+          "version": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["status", "db", "version", "time"]
+      },
+      "CategoryList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          }
+        },
+        "required": ["data"]
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string",
+            "example": "ai-tools"
+          },
+          "name": {
+            "type": "string",
+            "example": "AI Tools"
+          },
+          "description": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["id", "slug", "name", "description"]
+      },
+      "CategoryDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Category"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reviews": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReviewSummary"
+                }
+              }
+            },
+            "required": ["reviews"]
+          }
+        ]
+      },
+      "ReviewSummary": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "notion-review"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
+          "score": {
+            "type": ["number", "null"],
+            "description": "Editorial score 0–10, computed from the rubric"
+          },
+          "publishedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastVerifiedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "product": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": ["string", "null"]
+              },
+              "name": {
+                "type": ["string", "null"]
+              },
+              "tagline": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["slug", "name", "tagline"]
+          },
+          "category": {
+            "type": ["object", "null"],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["slug", "name"]
+          },
+          "image": {
+            "$ref": "#/components/schemas/Image"
+          },
+          "logo": {
+            "$ref": "#/components/schemas/Image"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "description",
+          "score",
+          "publishedAt",
+          "updatedAt",
+          "lastVerifiedAt",
+          "product",
+          "category",
+          "image",
+          "logo"
+        ]
+      },
+      "Image": {
+        "type": ["object", "null"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "width": {
+            "type": ["integer", "null"]
+          },
+          "height": {
+            "type": ["integer", "null"]
+          },
+          "alt": {
+            "type": ["string", "null"]
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "width": {
+                  "type": "integer"
+                },
+                "height": {
+                  "type": "integer"
+                }
+              },
+              "required": ["url", "width", "height"]
+            }
+          }
+        },
+        "required": ["url", "width", "height", "alt", "variants"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "not_found"
+              },
+              "message": {
+                "type": "string",
+                "example": "Category not found"
+              }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["error"]
+      },
+      "ReviewList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewSummary"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        },
+        "required": ["data", "pagination"]
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": ["integer", "null"]
+          }
+        },
+        "required": ["limit", "offset", "total"]
+      },
+      "ReviewDetail": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "seo": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": ["string", "null"]
+              },
+              "canonicalUrl": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": ["title", "description", "canonicalUrl"]
+          },
+          "score": {
+            "type": ["number", "null"]
+          },
+          "publishedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastVerifiedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "aiDisclosure": {
+            "type": ["string", "null"]
+          },
+          "author": {
+            "type": ["object", "null"],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["slug", "name"]
+          },
+          "product": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "tagline": {
+                "type": ["string", "null"]
+              },
+              "websiteUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "logo": {
+                "$ref": "#/components/schemas/Image"
+              }
+            },
+            "required": ["slug", "name", "tagline", "websiteUrl", "logo"]
+          },
+          "category": {
+            "type": ["object", "null"],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["slug", "name"]
+          },
+          "blocks": {
+            "$ref": "#/components/schemas/ArticleBody"
+          },
+          "media": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Image"
+            },
+            "description": "Images referenced by image blocks, keyed by asset id"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            }
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "go": {
+                "type": ["string", "null"],
+                "description": "Go-link slug; open `${webUrl}/go/{slug}?p=<placement>&a=<review slug>`"
+              },
+              "goBaseUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "web": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": ["go", "goBaseUrl", "web"]
+          },
+          "competitors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "reviewSlug": {
+                  "type": ["string", "null"]
+                },
+                "note": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": ["name", "reviewSlug", "note"]
+            }
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "seo",
+          "score",
+          "publishedAt",
+          "updatedAt",
+          "lastVerifiedAt",
+          "aiDisclosure",
+          "author",
+          "product",
+          "category",
+          "blocks",
+          "media",
+          "sources",
+          "links",
+          "competitors"
+        ]
+      },
+      "ArticleBody": {
+        "type": "array",
+        "items": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["heading"]
+                },
+                "level": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "enum": [2]
+                    },
+                    {
+                      "type": "number",
+                      "enum": [3]
+                    }
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "type", "level", "text"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["paragraph"]
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "marks": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["bold"]
+                                }
+                              },
+                              "required": ["type"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["italic"]
+                                }
+                              },
+                              "required": ["type"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["code"]
+                                }
+                              },
+                              "required": ["type"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["link"]
+                                },
+                                "href": {
+                                  "type": "string",
+                                  "format": "uri"
+                                }
+                              },
+                              "required": ["type", "href"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["golink"]
+                                },
+                                "slug": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "placement": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "required": ["type", "slug", "placement"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["citation"]
+                                },
+                                "citation": {
+                                  "type": "object",
+                                  "properties": {
+                                    "sourceId": {
+                                      "type": "string",
+                                      "format": "uuid"
+                                    },
+                                    "quote": {
+                                      "type": "string",
+                                      "maxLength": 500
+                                    }
+                                  },
+                                  "required": ["sourceId"]
+                                }
+                              },
+                              "required": ["type", "citation"]
+                            }
+                          ]
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": ["text"]
+                  }
+                }
+              },
+              "required": ["id", "type", "children"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["list"]
+                },
+                "ordered": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        },
+                        "marks": {
+                          "type": "array",
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": ["bold"]
+                                  }
+                                },
+                                "required": ["type"]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": ["italic"]
+                                  }
+                                },
+                                "required": ["type"]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": ["code"]
+                                  }
+                                },
+                                "required": ["type"]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": ["link"]
+                                  },
+                                  "href": {
+                                    "type": "string",
+                                    "format": "uri"
+                                  }
+                                },
+                                "required": ["type", "href"]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": ["golink"]
+                                  },
+                                  "slug": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "placement": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                },
+                                "required": ["type", "slug", "placement"]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": ["citation"]
+                                  },
+                                  "citation": {
+                                    "type": "object",
+                                    "properties": {
+                                      "sourceId": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      },
+                                      "quote": {
+                                        "type": "string",
+                                        "maxLength": 500
+                                      }
+                                    },
+                                    "required": ["sourceId"]
+                                  }
+                                },
+                                "required": ["type", "citation"]
+                              }
+                            ]
+                          },
+                          "default": []
+                        }
+                      },
+                      "required": ["text"]
+                    }
+                  }
+                }
+              },
+              "required": ["id", "type", "items"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["verdict"]
+                },
+                "score": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "bestFor": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "notFor": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                }
+              },
+              "required": ["id", "type", "score", "summary"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["rubric"]
+                },
+                "dimensions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "weight": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "score": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 10
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "citations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "sourceId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "quote": {
+                              "type": "string",
+                              "maxLength": 500
+                            }
+                          },
+                          "required": ["sourceId"]
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": ["key", "label", "weight", "score", "justification"]
+                  }
+                }
+              },
+              "required": ["id", "type", "dimensions"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["pricing_table"]
+                },
+                "verifiedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "tiers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "price": {
+                        "type": ["number", "null"]
+                      },
+                      "currency": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 3,
+                        "default": "USD"
+                      },
+                      "period": {
+                        "type": "string",
+                        "enum": ["month", "year", "one_time", "usage", "custom"]
+                      },
+                      "highlights": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "default": []
+                      },
+                      "citations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "sourceId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "quote": {
+                              "type": "string",
+                              "maxLength": 500
+                            }
+                          },
+                          "required": ["sourceId"]
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": ["name", "price", "period"]
+                  }
+                }
+              },
+              "required": ["id", "type", "verifiedAt", "tiers"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["pros_cons"]
+                },
+                "pros": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "cons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["id", "type", "pros", "cons"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["comparison_table"]
+                },
+                "productIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "minItems": 2
+                },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "values": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["label", "values"]
+                  }
+                }
+              },
+              "required": ["id", "type", "productIds", "rows"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["image"]
+                },
+                "assetId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "caption": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "type", "assetId"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["video"]
+                },
+                "videoId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": ["id", "type", "videoId"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["faq"]
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "question": {
+                        "type": "string"
+                      },
+                      "answer": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string"
+                            },
+                            "marks": {
+                              "type": "array",
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": ["bold"]
+                                      }
+                                    },
+                                    "required": ["type"]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": ["italic"]
+                                      }
+                                    },
+                                    "required": ["type"]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": ["code"]
+                                      }
+                                    },
+                                    "required": ["type"]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": ["link"]
+                                      },
+                                      "href": {
+                                        "type": "string",
+                                        "format": "uri"
+                                      }
+                                    },
+                                    "required": ["type", "href"]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": ["golink"]
+                                      },
+                                      "slug": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "placement": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      }
+                                    },
+                                    "required": ["type", "slug", "placement"]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": ["citation"]
+                                      },
+                                      "citation": {
+                                        "type": "object",
+                                        "properties": {
+                                          "sourceId": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          },
+                                          "quote": {
+                                            "type": "string",
+                                            "maxLength": 500
+                                          }
+                                        },
+                                        "required": ["sourceId"]
+                                      }
+                                    },
+                                    "required": ["type", "citation"]
+                                  }
+                                ]
+                              },
+                              "default": []
+                            }
+                          },
+                          "required": ["text"]
+                        }
+                      }
+                    },
+                    "required": ["question", "answer"]
+                  }
+                }
+              },
+              "required": ["id", "type", "items"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["cta"]
+                },
+                "goSlug": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "placement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "type", "goSlug", "placement", "label"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["callout"]
+                },
+                "tone": {
+                  "type": "string",
+                  "enum": ["info", "warning", "tip"]
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "marks": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["bold"]
+                                }
+                              },
+                              "required": ["type"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["italic"]
+                                }
+                              },
+                              "required": ["type"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["code"]
+                                }
+                              },
+                              "required": ["type"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["link"]
+                                },
+                                "href": {
+                                  "type": "string",
+                                  "format": "uri"
+                                }
+                              },
+                              "required": ["type", "href"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["golink"]
+                                },
+                                "slug": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "placement": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "required": ["type", "slug", "placement"]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": ["citation"]
+                                },
+                                "citation": {
+                                  "type": "object",
+                                  "properties": {
+                                    "sourceId": {
+                                      "type": "string",
+                                      "format": "uuid"
+                                    },
+                                    "quote": {
+                                      "type": "string",
+                                      "maxLength": 500
+                                    }
+                                  },
+                                  "required": ["sourceId"]
+                                }
+                              },
+                              "required": ["type", "citation"]
+                            }
+                          ]
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": ["text"]
+                  }
+                }
+              },
+              "required": ["id", "type", "tone", "children"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["sources"]
+                }
+              },
+              "required": ["id", "type"]
+            }
+          ]
+        },
+        "description": "Typed content blocks. Citation marks reference `sources[].id`; go-link marks and CTA blocks reference `links.go`."
+      },
+      "Source": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": ["string", "null"]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "url", "title", "kind", "fetchedAt"]
+      },
+      "ProductList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductSummary"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        },
+        "required": ["data", "pagination"]
+      },
+      "ProductSummary": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": ["string", "null"]
+          },
+          "websiteUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "category": {
+            "type": ["object", "null"],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["slug", "name"]
+          },
+          "reviewSlug": {
+            "type": ["string", "null"]
+          },
+          "score": {
+            "type": ["number", "null"]
+          },
+          "logo": {
+            "$ref": "#/components/schemas/Image"
+          }
+        },
+        "required": ["slug", "name", "tagline", "websiteUrl", "category", "reviewSlug", "score", "logo"]
+      },
+      "ProductDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProductSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "pricing": {
+                "type": ["object", "null"],
+                "properties": {
+                  "tiers": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PricingTier"
+                    }
+                  },
+                  "verifiedAt": {
+                    "type": ["string", "null"],
+                    "format": "date-time"
+                  }
+                },
+                "required": ["tiers", "verifiedAt"]
+              },
+              "goSlug": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["pricing", "goSlug"]
+          }
+        ]
+      },
+      "PricingTier": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": ["number", "null"]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "enum": ["month", "year", "one_time", "usage", "custom"]
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["name", "price", "currency", "period", "highlights"]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "tags": ["system"],
+        "summary": "Service health",
+        "responses": {
+          "200": {
+            "description": "Service is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/categories": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "List review categories",
+        "responses": {
+          "200": {
+            "description": "All categories in display order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/categories/{slug}": {
+      "get": {
+        "tags": ["catalog"],
+        "summary": "Get a category with its published reviews",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ai-tools"
+            },
+            "required": true,
+            "name": "slug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The category",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reviews": {
+      "get": {
+        "tags": ["reviews"],
+        "summary": "List or search published reviews",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ai-tools"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "description": "Search product name or title"
+            },
+            "required": false,
+            "description": "Search product name or title",
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 24
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reviews, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reviews/{slug}": {
+      "get": {
+        "tags": ["reviews"],
+        "summary": "Get a published review with its content blocks",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "notion-review"
+            },
+            "required": true,
+            "name": "slug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/products": {
+      "get": {
+        "tags": ["products"],
+        "summary": "List products that have a published review",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products A–Z",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/products/{slug}": {
+      "get": {
+        "tags": ["products"],
+        "summary": "Get a reviewed product with verified pricing",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "notion"
+            },
+            "required": true,
+            "name": "slug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

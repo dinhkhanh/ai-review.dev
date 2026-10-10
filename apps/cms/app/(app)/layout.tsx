@@ -7,6 +7,12 @@ export const dynamic = "force-dynamic";
 
 const NAV = [
   { href: "/", label: "Dashboard", adminOnly: false },
+  { href: "/intake", label: "New review", adminOnly: false },
+  { href: "/jobs", label: "Jobs", adminOnly: false },
+  { href: "/articles", label: "Articles", adminOnly: false },
+  { href: "/products", label: "Products", adminOnly: false },
+  { href: "/affiliate", label: "Affiliate", adminOnly: false },
+  { href: "/reports", label: "Visitor reports", adminOnly: false },
   { href: "/settings", label: "Settings", adminOnly: false },
   { href: "/audit", label: "Audit log", adminOnly: true },
 ];
@@ -36,7 +42,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <SignOutButton />
           </div>
         </header>
-        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <nav
+          className="flex gap-3 overflow-x-auto border-b border-border bg-bg px-4 py-2 text-sm md:hidden"
+          aria-label="Main"
+        >
+          {NAV.filter((n) => isAdmin || !n.adminOnly).map((n) => (
+            <Link key={n.href} href={n.href} className="whitespace-nowrap hover:underline">
+              {n.label}
+            </Link>
+          ))}
+        </nav>
+        <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
       </div>
     </div>
   );
