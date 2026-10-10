@@ -59,7 +59,10 @@ export interface paths {
     /** List review categories */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -95,7 +98,10 @@ export interface paths {
     /** Get a category with its published reviews */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
+        };
         header?: never;
         path: {
           slug: string;
@@ -148,6 +154,8 @@ export interface paths {
           q?: string;
           limit?: number;
           offset?: number | null;
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
         };
         header?: never;
         path?: never;
@@ -184,7 +192,10 @@ export interface paths {
     /** Get a published review with its content blocks */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
+        };
         header?: never;
         path: {
           slug: string;
@@ -236,6 +247,8 @@ export interface paths {
           category?: string;
           limit?: number;
           offset?: number | null;
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
         };
         header?: never;
         path?: never;
@@ -272,7 +285,10 @@ export interface paths {
     /** Get a published comparison or list with its content blocks */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
+        };
         header?: never;
         path: {
           type: components["schemas"]["GuideType"];
@@ -323,6 +339,8 @@ export interface paths {
         query?: {
           limit?: number;
           offset?: number | null;
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
         };
         header?: never;
         path?: never;
@@ -359,7 +377,10 @@ export interface paths {
     /** Get a reviewed product with verified pricing */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
+        };
         header?: never;
         path: {
           slug: string;
@@ -413,6 +434,8 @@ export interface paths {
           type?: components["schemas"]["ArticleType"];
           limit?: number;
           offset?: number | null;
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
         };
         header?: never;
         path?: never;
@@ -451,6 +474,8 @@ export interface paths {
       parameters: {
         query?: {
           category?: string;
+          /** @description Content locale. Articles, category names and taglines are returned in this locale. */
+          locale?: "en" | "de";
         };
         header?: never;
         path?: never;
@@ -689,6 +714,464 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/devices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Register an app install anonymously; returns the device token (shown once) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["DeviceRegisterRequest"];
+        };
+      };
+      responses: {
+        /** @description Registered */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeviceRegisterResponse"];
+          };
+        };
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Rate limited */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/devices/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** This device's settings and counts */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Device */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Device"];
+          };
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    /** Delete this device with its saved items and alerts */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Deleted */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    /** Update the push token (null turns push off), locale or app version */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["DeviceUpdateRequest"];
+        };
+      };
+      responses: {
+        /** @description Updated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Device"];
+          };
+        };
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/me/saved": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Saved articles, newest first */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Saved items */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SavedItemList"];
+          };
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Save an article (idempotent) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["SaveRequest"];
+        };
+      };
+      responses: {
+        /** @description Saved items after the change */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SavedItemList"];
+          };
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Article not found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Saved list is full */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/saved/{articleId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove a saved article */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          articleId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Saved items after the change */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SavedItemList"];
+          };
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/alerts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Products this device gets price-change pushes for */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Price alerts */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PriceAlertList"];
+          };
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Follow a product's pricing (idempotent) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["PriceAlertRequest"];
+        };
+      };
+      responses: {
+        /** @description Price alerts after the change */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PriceAlertList"];
+          };
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Product not found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Too many price alerts */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/alerts/{product}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Stop following a product's pricing */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          product: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Price alerts after the change */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PriceAlertList"];
+          };
+        };
+        /** @description Missing or invalid device token */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -720,6 +1203,7 @@ export interface components {
     ReviewSummary: {
       /** @example notion-review */
       slug: string;
+      locale: components["schemas"]["Locale"];
       title: string;
       description: string | null;
       /** @description Editorial score 0–10, computed from the rubric */
@@ -742,6 +1226,11 @@ export interface components {
       image: components["schemas"]["Image"];
       logo: components["schemas"]["Image"];
     };
+    /**
+     * @example de
+     * @enum {string}
+     */
+    Locale: "en" | "de";
     Image: {
       /** Format: uri */
       url: string;
@@ -774,6 +1263,9 @@ export interface components {
     };
     ReviewDetail: {
       slug: string;
+      locale: components["schemas"]["Locale"];
+      /** @description Live versions in other locales */
+      alternates: components["schemas"]["Alternate"][];
       title: string;
       seo: {
         title: string;
@@ -821,11 +1313,18 @@ export interface components {
       };
       competitors: {
         name: string;
+        /** @description Review slug in the same locale, if any */
         reviewSlug: string | null;
         note: string | null;
       }[];
       /** @description Video reviews on YouTube; empty when none */
       videos: components["schemas"]["Video"][];
+    };
+    Alternate: {
+      locale: components["schemas"]["Locale"];
+      slug: string;
+      /** Format: uri */
+      url: string;
     };
     /** @description Typed content blocks. Citation marks reference `sources[].id`; go-link marks and CTA blocks reference `links.go`. */
     ArticleBody: (
@@ -1153,6 +1652,7 @@ export interface components {
     };
     GuideSummary: {
       type: components["schemas"]["GuideType"];
+      locale: components["schemas"]["Locale"];
       /** @example notion-vs-coda */
       slug: string;
       title: string;
@@ -1177,6 +1677,9 @@ export interface components {
     GuideDetail: {
       type: components["schemas"]["GuideType"];
       slug: string;
+      locale: components["schemas"]["Locale"];
+      /** @description Live versions in other locales */
+      alternates: components["schemas"]["Alternate"][];
       title: string;
       seo: {
         title: string;
@@ -1336,8 +1839,98 @@ export interface components {
       /** Format: email */
       email: string;
       source?: string;
+      locale?: components["schemas"]["Locale"];
       /** @description Cloudflare Turnstile token; required when the server has Turnstile enabled */
       turnstileToken?: string;
+    };
+    DeviceRegisterResponse: {
+      /** Format: uuid */
+      deviceId: string;
+      /** @description Send as `Authorization: Bearer <token>`. Shown once; store it in secure storage. */
+      token: string;
+    };
+    DeviceRegisterRequest: {
+      platform: components["schemas"]["DevicePlatform"];
+      locale?: components["schemas"]["DeviceLocale"];
+      appVersion?: string;
+      /** @example ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx] */
+      pushToken?: string;
+    };
+    /** @enum {string} */
+    DevicePlatform: "ios" | "android" | "web";
+    /**
+     * @default en
+     * @enum {string}
+     */
+    DeviceLocale: "en" | "de";
+    Device: {
+      /** Format: uuid */
+      deviceId: string;
+      platform: components["schemas"]["DevicePlatform"];
+      locale: components["schemas"]["DeviceLocale"];
+      pushEnabled: boolean;
+      savedCount: number;
+      alertCount: number;
+    };
+    DeviceUpdateRequest: {
+      /**
+       * @description null turns push off
+       * @example ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+       */
+      pushToken?: string | null;
+      locale?: components["schemas"]["DeviceLocale"];
+      appVersion?: string;
+    };
+    SavedItemList: {
+      data: components["schemas"]["SavedItem"][];
+    };
+    SavedItem: {
+      /** Format: uuid */
+      articleId: string;
+      /** @enum {string} */
+      type: "review" | "comparison" | "alternatives" | "best_of";
+      slug: string;
+      locale: components["schemas"]["DeviceLocale"];
+      title: string;
+      description: string | null;
+      score: number | null;
+      productName: string | null;
+      /**
+       * Format: uri
+       * @description Canonical web URL
+       */
+      url: string;
+      /** Format: date-time */
+      savedAt: string;
+    };
+    SaveRequest: {
+      /**
+       * @default review
+       * @enum {string}
+       */
+      type: "review" | "comparison" | "alternatives" | "best_of";
+      slug: string;
+      locale?: components["schemas"]["DeviceLocale"];
+    };
+    PriceAlertList: {
+      data: components["schemas"]["PriceAlert"][];
+    };
+    PriceAlert: {
+      productSlug: string;
+      productName: string;
+      reviewSlug: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      lastChange: components["schemas"]["PriceChangeSummary"];
+    };
+    PriceChangeSummary: {
+      summary: string;
+      /** Format: date-time */
+      detectedAt: string;
+    } | null;
+    PriceAlertRequest: {
+      /** @description Product slug */
+      product: string;
     };
   };
   responses: never;

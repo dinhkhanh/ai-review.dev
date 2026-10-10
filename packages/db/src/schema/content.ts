@@ -84,9 +84,19 @@ export const articles = pgTable(
     social: jsonb("social").$type<SocialSnippets>(),
     /** Plain text of the published version for site search (FR-WEB-7); set on publish. */
     searchText: text("search_text"),
+    /** Text-search config follows the article locale (german for `de`, english otherwise). */
     searchTsv: tsvector("search_tsv").generatedAlwaysAs(
-      sql`setweight(to_tsvector('english', coalesce("title", '')), 'A') || setweight(to_tsvector('english', coalesce("search_text", '')), 'B')`,
+      sql`setweight(to_tsvector(case when "locale" = 'de' then 'german'::regconfig else 'english'::regconfig end, coalesce("title", '')), 'A') || setweight(to_tsvector(case when "locale" = 'de' then 'german'::regconfig else 'english'::regconfig end, coalesce("search_text", '')), 'B')`,
     ),
+    /**
+     * Translations (phase 3 second locale): the source-locale article this one was translated from,
+     * and the source version it reflects. A newer published source version marks it stale.
+     */
+    translationOfId: uuid("translation_of_id"),
+    translatedFromVersionId: uuid("translated_from_version_id"),
+    /** Content decay (FR-MNT-3): set while Search Console shows a sustained drop; cleared on refresh. */
+    decayDetectedAt: timestamp("decay_detected_at", { withTimezone: true }),
+    decaySignal: jsonb("decay_signal").$type<Record<string, unknown>>(),
     ...timestamps(),
   },
   (t) => [
@@ -94,6 +104,7 @@ export const articles = pgTable(
     index("articles_status_idx").on(t.status),
     index("articles_product_idx").on(t.productId),
     index("articles_search_tsv_idx").using("gin", t.searchTsv),
+    index("articles_translation_of_idx").on(t.translationOfId),
   ],
 );
 

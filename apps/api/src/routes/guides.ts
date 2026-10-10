@@ -1,9 +1,21 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { ErrorResponseSchema, GuideDetailSchema, GuideListSchema, GuideTypeSchema } from "@repo/contracts";
-import { articlePath } from "@repo/content";
-import { getMediaAssets, getPublishedArticleBySlug, getSetting, listPublishedArticles } from "@repo/core";
+import {
+  ErrorResponseSchema,
+  GuideDetailSchema,
+  GuideListSchema,
+  GuideTypeSchema,
+  LocaleQuerySchema,
+} from "@repo/contracts";
+import {
+  getArticleTranslations,
+  getMediaAssets,
+  getPublishedArticleBySlug,
+  getSetting,
+  listPublishedArticles,
+} from "@repo/core";
 import type { AppEnv } from "../create-app";
-import { cacheHeaders, iso, toImage, webUrl } from "../mappers";
+import { articleWebUrl, cacheHeaders, iso, toImage, webUrl } from "../mappers";
+import { alternatesFor } from "./reviews";
 
 const listRoute = createRoute({
   method: "get",
@@ -16,6 +28,7 @@ const listRoute = createRoute({
       category: z.string().optional().openapi({ example: "productivity" }),
       limit: z.coerce.number().int().min(1).max(100).default(24),
       offset: z.coerce.number().int().min(0).default(0),
+      locale: LocaleQuerySchema,
     }),
   },
   responses: {
@@ -30,6 +43,7 @@ const detailRoute = createRoute({
   summary: "Get a published comparison or list with its content blocks",
   request: {
     params: z.object({ type: GuideTypeSchema, slug: z.string().openapi({ example: "notion-vs-coda" }) }),
+    query: z.object({ locale: LocaleQuerySchema }),
   },
   responses: {
     200: { content: { "application/json": { schema: GuideDetailSchema } }, description: "The guide" },
@@ -40,24 +54,25 @@ const detailRoute = createRoute({
 /** Comparisons and lists for the mobile app (FR-CON-8, FR-API-1). Same block contract as reviews. */
 export const guidesRoutes = new OpenAPIHono<AppEnv>()
   .openapi(listRoute, async (c) => {
-    const { type, category, limit, offset } = c.req.valid("query");
+    const { type, category, limit, offset, locale } = c.req.valid("query");
     const db = c.get("db");
     const rows = await listPublishedArticles(db, {
       types: type ? [type] : ["comparison", "alternatives", "best_of"],
       categorySlug: category,
       limit,
       offset,
+      locale,
     });
     const assets = await getMediaAssets(
       db,
       rows.flatMap((r) => (r.ogImageAssetId ? [r.ogImageAssetId] : [])),
     );
-    const web = webUrl();
     cacheHeaders(c, ["guides", ...(category ? [`category:${category}`] : [])]);
     return c.json(
       {
         data: rows.map((r) => ({
           type: r.type as "comparison" | "alternatives" | "best_of",
+          locale,
           slug: r.slug,
           title: r.title,
           description: r.metaDescription,
@@ -67,7 +82,7 @@ export const guidesRoutes = new OpenAPIHono<AppEnv>()
           productCount: r.productCount,
           category: r.categorySlug && r.categoryName ? { slug: r.categorySlug, name: r.categoryName } : null,
           image: toImage(assets.find((a) => a.id === r.ogImageAssetId)),
-          url: `${web}${articlePath(r.type, r.slug)}`,
+          url: articleWebUrl(r.type, r.slug, locale),
         })),
         pagination: { limit, offset, total: null },
       },
@@ -76,17 +91,21 @@ export const guidesRoutes = new OpenAPIHono<AppEnv>()
   })
   .openapi(detailRoute, async (c) => {
     const { type, slug } = c.req.valid("param");
+    const { locale } = c.req.valid("query");
     const db = c.get("db");
-    const data = await getPublishedArticleBySlug(db, slug, type);
+    const data = await getPublishedArticleBySlug(db, slug, type, locale);
     if (!data) return c.json({ error: { code: "not_found", message: "Guide not found" } }, 404);
     const web = webUrl();
-    const url = `${web}${articlePath(type, data.article.slug)}`;
+    const url = articleWebUrl(type, data.article.slug, locale);
+    const alternates = alternatesFor(await getArticleTranslations(db, data.article.id), locale);
     const og = data.media.find((m) => m.id === data.version.seo?.ogImageAssetId);
     cacheHeaders(c, [`article:${slug}`, "guides"]);
     return c.json(
       {
         type,
         slug: data.article.slug,
+        locale,
+        alternates,
         title: data.article.title,
         seo: {
           title: data.version.seo?.title ?? data.article.title,

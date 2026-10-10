@@ -117,6 +117,13 @@ describe("visitor writes (FR-API-3)", () => {
     expect((await post("/v1/newsletter", { email: "nope" })).status).toBe(400);
   });
 
+  it("stores the digest locale and rejects unknown ones", async () => {
+    expect((await post("/v1/newsletter", { email: "leser@example.de", locale: "de" }, "192.0.2.61")).status).toBe(202);
+    const rows = await ctx.db.select().from(newsletterSubscribers);
+    expect(rows.find((r) => r.email === "leser@example.de")?.locale).toBe("de");
+    expect((await post("/v1/newsletter", { email: "x@example.com", locale: "fr" }, "192.0.2.62")).status).toBe(400);
+  });
+
   it("documents the new endpoints", async () => {
     const doc = (await (await app.request("/openapi.json")).json()) as { paths: Record<string, unknown> };
     expect(Object.keys(doc.paths)).toEqual(

@@ -561,6 +561,9 @@ describe("review pipeline end to end (fakes)", () => {
     const current = await getCurrentVersion(ctx.db, first.articleId);
     const table = current!.blocks.find((b) => b.type === "pricing_table");
     expect(table?.type === "pricing_table" && table.tiers.find((t) => t.name === "Plus")?.price).toBe(15);
+    // The price change is queued for mobile push alerts (FR-API-4).
+    const changes = await ctx.db.execute<{ summary: string }>(sql`select summary from price_changes`);
+    expect(changes.map((c) => c.summary)).toEqual(["Plus: $12/mo → $15/mo"]);
     const steps = (await getJob(ctx.db, (await listJobs(ctx.db))[0]!.id))!.steps.map((s) => s.name);
     expect(steps).toEqual(expect.arrayContaining(["site_check", "refresh_plan", "refresh_rewrite", "fact_check"]));
     expect(steps).not.toContain("write");

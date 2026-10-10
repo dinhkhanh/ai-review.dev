@@ -101,7 +101,29 @@ describe("resolveGoLink", () => {
       programId: "p1",
       fallback: false,
       subId: "notion-review--verdict",
+      experimentId: null,
     });
+  });
+  it("tags A/B variant clicks with the experiment and a variant SubID (FR-AFF-13)", () => {
+    const links = [
+      link({ id: "aaaaaaaa-1111-4000-8000-000000000000", experimentId: "exp1", weight: 50 }),
+      link({ id: "bbbbbbbb-2222-4000-8000-000000000000", experimentId: "exp1", weight: 50 }),
+    ];
+    const a = resolveGoLink(table(links), {
+      articleSlug: "notion-review",
+      placement: "hero",
+      now: NOW,
+      random: () => 0.1,
+    });
+    const b = resolveGoLink(table(links), {
+      articleSlug: "notion-review",
+      placement: "hero",
+      now: NOW,
+      random: () => 0.9,
+    });
+    expect(a).toMatchObject({ linkId: links[0]!.id, experimentId: "exp1", subId: "notion-review--hero--vaaaaaa" });
+    expect(b).toMatchObject({ linkId: links[1]!.id, experimentId: "exp1", subId: "notion-review--hero--vbbbbbb" });
+    expect(new URL(a.url).searchParams.get("via")).toBe("aireview");
   });
   it("supports manual links with no program", () => {
     const r = resolveGoLink(table([link({ program: null, destinationUrl: "https://v.com/r/abc" })]), { now: NOW });

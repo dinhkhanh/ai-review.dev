@@ -1,15 +1,15 @@
 /** Header search (FR-WEB-7): a plain GET form, so it works without JavaScript. */
-export function SearchBox() {
+export function SearchBox({ action, label, placeholder }: { action: string; label: string; placeholder: string }) {
   return (
-    <form action="/search" method="get" role="search" className="hidden sm:block">
+    <form action={action} method="get" role="search" className="hidden sm:block">
       <label htmlFor="site-search" className="sr-only">
-        Search reviews
+        {label}
       </label>
       <input
         id="site-search"
         name="q"
         type="search"
-        placeholder="Search reviews"
+        placeholder={placeholder}
         maxLength={200}
         className="h-9 w-44 rounded-md border border-border bg-bg px-3 text-sm lg:w-56"
       />

@@ -1,4 +1,5 @@
 import type { Image } from "@repo/contracts";
+import { localizedArticlePath, type ArticleTypeKey } from "@repo/content";
 import { mediaUrl, urlForKey, type MediaRef } from "@repo/media/urls";
 
 type Asset = MediaRef & { id: string; alt: string | null; width: number | null; height: number | null };
@@ -18,6 +19,10 @@ export function toImage(asset: Asset | null | undefined): Image | null {
 }
 
 export const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
+
+/** Absolute web URL of an article in its locale (`/de/...` for German). */
+export const articleWebUrl = (type: ArticleTypeKey, slug: string, locale?: string | null) =>
+  `${webUrl()}${localizedArticlePath(type, slug, locale)}`;
 
 export const webUrl = () => (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 

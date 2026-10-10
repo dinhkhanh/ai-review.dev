@@ -1,7 +1,16 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { ErrorResponseSchema, ReviewDetailSchema, ReviewListSchema, type ReviewSummary } from "@repo/contracts";
+import {
+  ErrorResponseSchema,
+  LocaleQuerySchema,
+  ReviewDetailSchema,
+  ReviewListSchema,
+  type Alternate,
+  type ReviewSummary,
+} from "@repo/contracts";
+import { isContentLocale } from "@repo/content";
 import {
   countPublishedReviews,
+  getArticleTranslations,
   getMediaAssets,
   getPublishedArticleBySlug,
   getSetting,
@@ -9,11 +18,21 @@ import {
   publicVideo,
   publishedVideosForArticle,
   searchPublishedReviews,
+  type ArticleTranslation,
   type ReviewCard,
 } from "@repo/core";
 import type { Database } from "@repo/db";
 import type { AppEnv } from "../create-app";
-import { cacheHeaders, iso, toImage, webUrl } from "../mappers";
+import { articleWebUrl, cacheHeaders, iso, toImage, webUrl } from "../mappers";
+
+/** Live versions of an article in other locales, for `alternates` (hreflang). */
+export function alternatesFor(translations: ArticleTranslation[], current: string): Alternate[] {
+  return translations.flatMap((t) =>
+    t.locale !== current && isContentLocale(t.locale)
+      ? [{ locale: t.locale, slug: t.slug, url: articleWebUrl(t.type, t.slug, t.locale) }]
+      : [],
+  );
+}
 
 export async function toSummaries(db: Database, cards: ReviewCard[]): Promise<ReviewSummary[]> {
   const assets = await getMediaAssets(
@@ -23,6 +42,7 @@ export async function toSummaries(db: Database, cards: ReviewCard[]): Promise<Re
   const byId = new Map(assets.map((a) => [a.id, a]));
   return cards.map((c) => ({
     slug: c.slug,
+    locale: isContentLocale(c.locale) ? c.locale : "en",
     title: c.title,
     description: c.metaDescription,
     score: c.overallScore,
@@ -47,6 +67,7 @@ const listRoute = createRoute({
       q: z.string().max(100).optional().openapi({ description: "Search product name or title" }),
       limit: z.coerce.number().int().min(1).max(100).default(24),
       offset: z.coerce.number().int().min(0).default(0),
+      locale: LocaleQuerySchema,
     }),
   },
   responses: {
@@ -59,7 +80,10 @@ const detailRoute = createRoute({
   path: "/reviews/{slug}",
   tags: ["reviews"],
   summary: "Get a published review with its content blocks",
-  request: { params: z.object({ slug: z.string().openapi({ example: "notion-review" }) }) },
+  request: {
+    params: z.object({ slug: z.string().openapi({ example: "notion-review" }) }),
+    query: z.object({ locale: LocaleQuerySchema }),
+  },
   responses: {
     200: { content: { "application/json": { schema: ReviewDetailSchema } }, description: "The review" },
     404: { content: { "application/json": { schema: ErrorResponseSchema } }, description: "Not found" },
@@ -68,21 +92,23 @@ const detailRoute = createRoute({
 
 export const reviewsRoutes = new OpenAPIHono<AppEnv>()
   .openapi(listRoute, async (c) => {
-    const { category, q, limit, offset } = c.req.valid("query");
+    const { category, q, limit, offset, locale } = c.req.valid("query");
     const db = c.get("db");
     const cards = q
-      ? await searchPublishedReviews(db, q, limit)
-      : await listPublishedReviews(db, { categorySlug: category, limit, offset });
-    const total = q ? null : await countPublishedReviews(db, { categorySlug: category });
+      ? await searchPublishedReviews(db, q, limit, locale)
+      : await listPublishedReviews(db, { categorySlug: category, limit, offset, locale });
+    const total = q ? null : await countPublishedReviews(db, { categorySlug: category, locale });
     cacheHeaders(c, ["reviews", ...(category ? [`category:${category}`] : [])]);
     return c.json({ data: await toSummaries(db, cards), pagination: { limit, offset, total } }, 200);
   })
   .openapi(detailRoute, async (c) => {
     const { slug } = c.req.valid("param");
+    const { locale } = c.req.valid("query");
     const db = c.get("db");
-    const data = await getPublishedArticleBySlug(db, slug);
+    const data = await getPublishedArticleBySlug(db, slug, "review", locale);
     if (!data || !data.product) return c.json({ error: { code: "not_found", message: "Review not found" } }, 404);
     const web = webUrl();
+    const url = articleWebUrl("review", data.article.slug, locale);
     const og = data.media.find((m) => m.id === data.version.seo?.ogImageAssetId);
     const logo = data.media.find((m) => m.id === data.product?.logoAssetId);
     const videos = (await publishedVideosForArticle(db, data.article.id)).map(publicVideo);
@@ -90,11 +116,13 @@ export const reviewsRoutes = new OpenAPIHono<AppEnv>()
     return c.json(
       {
         slug: data.article.slug,
+        locale,
+        alternates: alternatesFor(await getArticleTranslations(db, data.article.id), locale),
         title: data.article.title,
         seo: {
           title: data.version.seo?.title ?? data.article.title,
           description: data.version.seo?.metaDescription ?? null,
-          canonicalUrl: `${web}/reviews/${data.article.slug}`,
+          canonicalUrl: url,
         },
         score: data.version.overallScore,
         publishedAt: iso(data.article.publishedAt),
@@ -126,7 +154,7 @@ export const reviewsRoutes = new OpenAPIHono<AppEnv>()
           kind: s.kind,
           fetchedAt: s.fetchedAt.toISOString(),
         })),
-        links: { go: data.goSlug, goBaseUrl: `${web}/go`, web: `${web}/reviews/${data.article.slug}` },
+        links: { go: data.goSlug, goBaseUrl: `${web}/go`, web: url },
         competitors: data.competitors.map((x) => ({ name: x.name, reviewSlug: x.reviewSlug, note: x.note })),
         videos: videos.map((v) => ({ ...v, uploadedAt: iso(v.uploadedAt) })),
       },

@@ -10,7 +10,14 @@ import {
 } from "@repo/core";
 import type { z } from "zod";
 import { guardCostCeiling, JobPausedError, notifyJobSucceeded } from "./lifecycle";
-import { DERIVATIVE_PRESETS, stepsForPreset, type DerivativeStep, type ReviewStep } from "./review-steps";
+import {
+  DERIVATIVE_PRESETS,
+  stepsForPreset,
+  type DerivativeStep,
+  type ReviewStep,
+  type TranslateStep,
+} from "./review-steps";
+import { handsOnStep } from "./hands-on/step";
 import { executeStep, type StepDefinition, type StepServices } from "./step";
 import { affiliateDiscoveryStep } from "./steps/affiliate-discovery";
 import { chunkEmbedStep } from "./steps/chunk-embed";
@@ -36,6 +43,7 @@ import { siteCheckStep } from "./steps/site-check";
 import { socialStep } from "./steps/social";
 import { stylePassStep } from "./steps/style-pass";
 import { writeStep } from "./steps/write";
+import { translateCatalogStep, translateInputSchema, translateStep } from "./translate";
 
 /** Intake stored on review_jobs.input (FR-INT-1). */
 export interface JobInput {
@@ -50,19 +58,22 @@ export interface JobInput {
 
 export interface RunOptions {
   /** Re-run this step and everything after it, even if they succeeded before. */
-  fromStep?: ReviewStep | DerivativeStep;
+  fromStep?: ReviewStep | DerivativeStep | TranslateStep;
   /** Re-run only this step (downstream outputs are kept). */
-  onlyStep?: ReviewStep | DerivativeStep;
+  onlyStep?: ReviewStep | DerivativeStep | TranslateStep;
   log?: (message: string, data?: Record<string, unknown>) => void;
 }
 
 export {
   DERIVATIVE_STEPS,
+  HANDS_ON_STEPS,
   REVIEW_STEPS,
+  TRANSLATE_STEPS,
   prepareRerun,
   stepsForPreset,
   type DerivativeStep,
   type ReviewStep,
+  type TranslateStep,
 } from "./review-steps";
 
 export class JobCancelledError extends Error {
@@ -118,10 +129,10 @@ export async function runReviewJob(services: StepServices, jobId: string, opts: 
   }
 
   /** Shared tail: graphics, QA gates, social posts, then publish or hand over for review. */
-  async function finishArticle(articleId: string, label: string) {
+  async function finishArticle(articleId: string, label: string, opts: { social?: boolean } = {}) {
     await optional("graphics", () => run(graphicsStep, { articleId }));
     const qa = await run(qaGatesStep, { articleId });
-    await optional("social", () => run(socialStep, { articleId }));
+    if (opts.social !== false) await optional("social", () => run(socialStep, { articleId }));
     const decision = await run(publishDecisionStep, { articleId });
     await setJobStatus(services.db, jobId, "succeeded", { error: null });
     await notifyJobSucceeded(
@@ -133,6 +144,25 @@ export async function runReviewJob(services: StepServices, jobId: string, opts: 
   }
 
   try {
+    // Translations (phase 3 second locale): translate the published English article, then the
+    // shared tail without social posts (those stay English). Nothing to do when it is current.
+    if (job.preset === "translate") {
+      const intake = translateInputSchema.parse(job.input);
+      const translated = await run(translateStep, intake);
+      if (translated.mode === "up_to_date") {
+        await setJobStatus(services.db, jobId, "succeeded", { error: null });
+        await notifyJobSucceeded(services.db, jobId, "Translation already matches the published English version.");
+        return { jobId, articleId: translated.articleId, qa: null, outcome: "up_to_date" as const, productId: null };
+      }
+      await optional("translate_catalog", () =>
+        run(translateCatalogStep, { articleId: translated.articleId, locale: intake.locale }),
+      );
+      return {
+        ...(await finishArticle(translated.articleId, "Translation", { social: false })),
+        productId: job.productId,
+      };
+    }
+
     // Comparisons, alternatives and best-of lists are written from existing research (FR-CON-8).
     if ((DERIVATIVE_PRESETS as readonly string[]).includes(job.preset)) {
       const intake = derivativeInputSchema.parse({ ...job.input, kind: job.preset });
@@ -143,6 +173,9 @@ export async function runReviewJob(services: StepServices, jobId: string, opts: 
       await run(stylePassStep, { articleId: written.articleId });
       return { ...(await finishArticle(written.articleId, "Article")), productId: null };
     }
+
+    // Standalone hands-on trials have their own runner (no article work, different result).
+    if (job.preset === "hands_on") throw new Error("Hands-on jobs run with runHandsOnJob (worker task hands-on-trial)");
 
     const resolved = await run(resolveProductStep, {
       url: input.url ?? null,
@@ -169,6 +202,9 @@ export async function runReviewJob(services: StepServices, jobId: string, opts: 
       run(collectThirdPartyStep, { productId }),
       optional("affiliate_discovery", () => run(affiliateDiscoveryStep, { productId })),
     ]);
+    // Hands-on trial (FR-RES-7) for opted-in products, before chunking so its notes are evidence.
+    if (job.preset === "full_review")
+      await optional("hands_on", () => run(handsOnStep, { productId, required: false }));
     await run(chunkEmbedStep, { productId });
     await run(extractFactsStep, { productId });
     await run(factSheetStep, { productId });

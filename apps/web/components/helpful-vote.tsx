@@ -8,11 +8,16 @@ import { useState, type FormEvent, type ReactNode } from "react";
  */
 export function HelpfulVote({
   articleSlug,
+  locale,
   returnTo,
+  t,
   children,
 }: {
   articleSlug: string;
+  /** Page locale: votes resolve the article by slug within it. */
+  locale: string;
   returnTo: string;
+  t: { helpful: string; yes: string; no: string; thanks: string; voteError: string };
   children?: ReactNode;
 }) {
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
@@ -33,7 +38,7 @@ export function HelpfulVote({
   if (state === "done") {
     return (
       <p role="status" className="text-sm">
-        Thanks for the feedback.
+        {t.thanks}
       </p>
     );
   }
@@ -43,21 +48,22 @@ export function HelpfulVote({
     <form action="/api/vote" method="post" onSubmit={onSubmit} className="flex flex-wrap items-center gap-3">
       <input type="hidden" name="article" value={articleSlug} />
       <input type="hidden" name="return" value={returnTo} />
+      <input type="hidden" name="locale" value={locale} />
       <span id="helpful-label" className="text-sm font-medium">
-        Was this review helpful?
+        {t.helpful}
       </span>
       <div role="group" aria-labelledby="helpful-label" className="flex gap-2">
         <button name="helpful" value="yes" className={btn} disabled={state === "sending"}>
-          Yes
+          {t.yes}
         </button>
         <button name="helpful" value="no" className={btn} disabled={state === "sending"}>
-          No
+          {t.no}
         </button>
       </div>
       {children}
       {state === "error" ? (
         <p role="alert" className="w-full text-sm text-danger">
-          Could not record your vote. Please try again later.
+          {t.voteError}
         </p>
       ) : null}
     </form>

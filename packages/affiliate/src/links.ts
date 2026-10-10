@@ -42,22 +42,49 @@ export function sanitizeToken(input: string | null | undefined, max = 40): strin
     .slice(0, max);
 }
 
+/** Hex characters of a link id carried in the SubID of A/B variant clicks (FR-AFF-13). */
+export const VARIANT_TOKEN_LENGTH = 6;
+const VARIANT_TOKEN = new RegExp(`^v([0-9a-f]{${VARIANT_TOKEN_LENGTH}})$`);
+
+/** Short, stable token for a link id: `v` + its first hex characters (`v3f9a1c`). */
+export function variantToken(linkId: string): string {
+  return `v${linkId.replace(/-/g, "").toLowerCase().slice(0, VARIANT_TOKEN_LENGTH)}`;
+}
+
 /**
  * SubID appended to tracked links: `<article-slug>--<placement>` so network reports can be joined
- * back to a page and placement (FR-AFF-6, FR-AFF-12). Always ≤ 64 URL-safe characters.
+ * back to a page and placement (FR-AFF-6, FR-AFF-12). Clicks on an A/B variant (FR-AFF-13) add
+ * `--v<link>` so conversions attribute to the variant; the placement is then capped at 13
+ * characters (the longest placement code). Always ≤ 64 URL-safe characters.
  */
-export function buildSubId(articleSlug: string | null | undefined, placement: string | null | undefined): string {
+export function buildSubId(
+  articleSlug: string | null | undefined,
+  placement: string | null | undefined,
+  variantLinkId?: string | null,
+): string {
   const page = sanitizeToken(articleSlug, 40) || "go";
+  if (variantLinkId) {
+    const where = sanitizeToken(placement, 13) || "direct";
+    return `${page}--${where}--${variantToken(variantLinkId)}`;
+  }
   const where = sanitizeToken(placement, 20) || "direct";
   return `${page}--${where}`;
 }
 
-/** Splits a SubID back into its parts (inverse of `buildSubId`). */
-export function parseSubId(subId: string): { articleSlug: string | null; placement: string | null } {
-  const [page, where] = subId.split("--");
+/**
+ * Splits a SubID back into its parts (inverse of `buildSubId`). `variant` is the hex prefix or
+ * null. Case-insensitive: SubIDs are built lowercase, but some network reports upper-case them.
+ */
+export function parseSubId(subId: string): {
+  articleSlug: string | null;
+  placement: string | null;
+  variant: string | null;
+} {
+  const [page, where, extra] = subId.toLowerCase().split("--");
   return {
     articleSlug: page && page !== "go" ? page : null,
     placement: where && where !== "direct" ? where : null,
+    variant: (extra && VARIANT_TOKEN.exec(extra)?.[1]) || null,
   };
 }
 

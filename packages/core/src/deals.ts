@@ -97,9 +97,11 @@ const runningAt = (now: Date) =>
  */
 export async function listActiveDeals(
   db: DbOrTx,
-  opts: { categorySlug?: string | null; now?: Date; limit?: number } = {},
+  opts: { categorySlug?: string | null; now?: Date; limit?: number; locale?: string | null } = {},
 ) {
   const now = opts.now ?? new Date();
+  // Deals link to the product's review in the page locale, so only products reviewed in it qualify.
+  const locale = opts.locale || "en";
   return db
     .select({
       id: deals.id,
@@ -117,7 +119,9 @@ export async function listActiveDeals(
         string | null
       >`(select ${goSlugs.slug} from ${goSlugs} where ${goSlugs.productId} = ${products.id} order by ${goSlugs.createdAt} limit 1)`,
       categorySlug: categories.slug,
-      categoryName: categories.name,
+      categoryName: sql<
+        string | null
+      >`coalesce(nullif(${categories.translations} -> ${locale} ->> 'name', ''), ${categories.name})`,
     })
     .from(deals)
     .innerJoin(products, eq(products.id, deals.productId))
@@ -126,6 +130,7 @@ export async function listActiveDeals(
       and(
         eq(articles.productId, products.id),
         eq(articles.type, "review"),
+        eq(articles.locale, locale),
         sql`${articles.publishedVersionId} is not null`,
         ne(articles.status, "archived"),
       ),

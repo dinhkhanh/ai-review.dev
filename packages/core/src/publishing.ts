@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { ARTICLE_ROUTE_PREFIX, articlePath } from "@repo/content";
+import { ARTICLE_ROUTE_PREFIX, localePath, localizedArticlePath } from "@repo/content";
 import { articles, authors, categories, eq, products, sql, type DbOrTx } from "@repo/db";
-import { dueScheduledArticles, publishArticle } from "./articles";
+import { dueScheduledArticles, getArticle, publishArticle } from "./articles";
+import { queueAutoTranslations } from "./translations";
 
 export interface PublishEnv {
   siteUrl: string;
@@ -27,10 +28,21 @@ export function indexNowKeyFrom(env: NodeJS.ProcessEnv = process.env): string | 
   return createHash("sha256").update(`indexnow:${env.REVALIDATE_SECRET}`).digest("hex").slice(0, 32);
 }
 
-/** Pages to revalidate when an article changes (FR-WEB-2): the page, its category, author, home, feeds. */
+/**
+ * Pages to revalidate when an article changes (FR-WEB-2): the page, its category, author, home,
+ * feeds, all in the article's locale. A translation also revalidates its source page, whose
+ * hreflang alternates list it.
+ */
 export async function pathsForArticle(db: DbOrTx, articleId: string): Promise<string[]> {
   const [row] = await db
-    .select({ slug: articles.slug, type: articles.type, category: categories.slug, author: authors.slug })
+    .select({
+      slug: articles.slug,
+      type: articles.type,
+      locale: articles.locale,
+      translationOfId: articles.translationOfId,
+      category: categories.slug,
+      author: authors.slug,
+    })
     .from(articles)
     .leftJoin(products, eq(products.id, articles.productId))
     .leftJoin(categories, sql`${categories.id} = coalesce(${articles.categoryId}, ${products.categoryId})`)
@@ -38,21 +50,24 @@ export async function pathsForArticle(db: DbOrTx, articleId: string): Promise<st
     .where(eq(articles.id, articleId))
     .limit(1);
   if (!row) return ["/"];
+  const at = (path: string) => localePath(row.locale, path);
+  const source = row.translationOfId ? await getArticle(db, row.translationOfId) : null;
   return [
-    articlePath(row.type, row.slug),
-    "/",
-    row.type === "review" ? "/reviews" : ARTICLE_ROUTE_PREFIX[row.type],
-    ...(row.category ? [`/categories/${row.category}`] : []),
-    ...(row.author ? [`/authors/${row.author}`] : []),
+    localizedArticlePath(row.type, row.slug, row.locale),
+    at("/"),
+    at(row.type === "review" ? "/reviews" : ARTICLE_ROUTE_PREFIX[row.type]),
+    ...(row.category ? [at(`/categories/${row.category}`)] : []),
+    ...(row.author ? [at(`/authors/${row.author}`)] : []),
+    ...(source ? [localizedArticlePath(source.type, source.slug, source.locale)] : []),
     "/sitemap.xml",
-    "/feed.xml",
-  ];
+    at("/feed.xml"),
+  ].filter((p, i, all) => all.indexOf(p) === i);
 }
 
 /** Asks the web app to revalidate paths (FR-WEB-2, FR-AFF-8). Never throws; returns the outcome. */
 export async function requestRevalidation(
   env: PublishEnv,
-  input: { paths?: string[]; tags?: string[] },
+  input: { paths?: string[]; tags?: string[]; all?: boolean },
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ ok: boolean; status?: number; error?: string }> {
   if (!env.revalidateSecret) return { ok: false, error: "REVALIDATE_SECRET is not set" };
@@ -96,12 +111,17 @@ export async function pingIndexNow(
   }
 }
 
-/** Side effects after publishing: revalidate pages and ping IndexNow for the article URL. */
+/**
+ * Side effects after publishing: revalidate pages, ping IndexNow for the article URL, and queue
+ * auto-translations of English articles (`i18n.policy.autoTranslate`). Returns the new translate
+ * job ids so callers that can dispatch (the CMS) do so at once; the worker cron picks up the rest.
+ */
 export async function afterPublish(db: DbOrTx, articleId: string, env: PublishEnv, fetchImpl: typeof fetch = fetch) {
   const paths = await pathsForArticle(db, articleId);
   const revalidate = await requestRevalidation(env, { paths }, fetchImpl);
   const indexNow = await pingIndexNow(env, [`${env.siteUrl.replace(/\/$/, "")}${paths[0]}`], fetchImpl);
-  return { paths, revalidate, indexNow };
+  const translationJobs = await queueAutoTranslations(db, articleId).catch(() => [] as string[]);
+  return { paths, revalidate, indexNow, translationJobs };
 }
 
 /** Publishes scheduled articles whose time has come (cron). Failures are reported, not thrown. */

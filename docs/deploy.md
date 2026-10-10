@@ -105,6 +105,57 @@ Every Phase 2 feature is optional and stays off (or degrades gracefully) until i
    `video.settings`, auto-publish (`publishing.autoPublishCategories` and, deliberately,
    `publishing.requireHumanReview = false`). Refresh and link health are on by default.
 
+## Phase 3 rollout (owner)
+
+Every Phase 3 feature stays off or hidden until its keys and settings exist.
+
+1. **Migrate and seed** (migration `0006_phase3_foundation`; seed adds the Phase 3 settings keys):
+   ```sh
+   node scripts/prod.mjs db:migrate
+   node scripts/prod.mjs db:seed
+   ```
+2. **Fill the Phase 3 values you want** in `.env.production.local` (section "Phase 3" of
+   `.env.production.example`), then `node scripts/prod.mjs env:check` and `env:push`. The CMS now
+   also gets `NEXT_PUBLIC_SITE_URL` (digest links).
+   - **Search Console:** in Google Cloud, enable the "Google Search Console API" and create a service
+     account (no roles) with a JSON key. In Search Console → Settings → Users and permissions, add
+     its email with Restricted access. Set `GSC_CLIENT_EMAIL`, `GSC_PRIVATE_KEY` (literal `\n` is
+     fine) and `GSC_SITE_URL` (`sc-domain:ai-review.dev` or `https://ai-review.dev/`).
+   - **Hands-on trials:** `VAULT_KEY` (`openssl rand -base64 32`) on the CMS and the worker. Point the
+     MX records of `HANDS_ON_INBOX_DOMAIN` (e.g. `trials.ai-review.dev`) at Resend receiving.
+     `BROWSER_WS_ENDPOINT` is optional (remote browser).
+   - **Mobile:** `APPLE_TEAM_ID`, `IOS_BUNDLE_ID`, `ANDROID_PACKAGE` and `ANDROID_CERT_SHA256` on the
+     web app. For the cert, use comma-separated upload key + Play app-signing key. Add
+     `EXPO_ACCESS_TOKEN` on the worker only if enhanced push security is on.
+3. **Redeploy the worker** (`pnpm --filter worker run deploy`). The image now includes headless
+   Chromium. New tasks: `search-console-import`(+`-now`), `newsletter-digest`, `newsletter-send`,
+   `translation-dispatch`, `price-alert-push`, `push-receipts`, `hands-on-trial`.
+4. **Redeploy web, CMS and API** (push to main). The web app now routes through `proxy.ts`, with
+   German under `/de`. The API is version 1.4.0 (`?locale=`, mobile endpoints).
+5. **Before German goes public**, fill in `apps/web/lib/legal.ts`. Until then `/impressum` is
+   noindexed and shows placeholders.
+   - Required: operator name, postal address (no P.O. box), email, a phone or other fast contact
+     channel, and the person responsible for content under MStV § 18(2) with name and address.
+   - If applicable: legal form and representative, register entry, VAT ID.
+   - Have a lawyer review the German privacy policy.
+6. **Switch features on in CMS Settings:**
+   - `i18n.policy`: add `"de"` to `autoTranslate` first (translations back-fill 5 per 15 minutes and
+     wait in review). Add it to `enabledLocales` once German articles are published. Saving
+     revalidates the whole site.
+   - `newsletter.digest.enabled` (and `autoSend` once you trust the drafts).
+   - `pipeline.handsOnTrials`. Then save the test identity at `/vault` and opt products in at
+     `/hands-on`, only where the vendor's terms allow automated evaluation sign-ups.
+   - `searchConsole.policy` and `mobile.push` are on by default. Backfill Search Console once from
+     `/decay` → "Import now" with 486 days.
+7. **Mobile app** (`apps/mobile`):
+   - `eas init` and set `EAS_PROJECT_ID`.
+   - Push credentials: APNs key via `eas credentials`; FCM v1 service-account JSON uploaded to EAS.
+   - Build with `eas build -p ios|android --profile preview`, then `production` + `eas submit`.
+   - Store privacy answers: anonymous device id; saved items and alerts stored server-side;
+     "Delete my data" is in the app.
+   - Replace the template icon and splash images. Locally:
+     `EXPO_PUBLIC_API_URL=http://<LAN IP>:3002 pnpm --filter mobile dev`.
+
 ## How the pieces talk
 
 - CMS "New review" creates a `review_jobs` row and triggers the `review-product` task with the job

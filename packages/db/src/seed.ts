@@ -49,6 +49,19 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   "notifications.events": {},
   "sourcing.policy": { enabled: false, sources: ["producthunt", "hackernews", "networks"], maxPerRun: 25, minScore: 1 },
   "video.settings": { voiceId: null, kinds: ["short", "long"], youtubePrivacy: "private", autoGenerate: false },
+  // Phase 3
+  "newsletter.digest": { enabled: false, weekday: 4, hourUtc: 8, maxItems: 8, autoSend: false }, // FR-WEB-9
+  "searchConsole.policy": {
+    enabled: true,
+    windowDays: 28,
+    minClickDrop: 0.3,
+    minBaselineClicks: 20,
+    scheduleRefresh: true,
+  }, // FR-MNT-3
+  "i18n.policy": { enabledLocales: ["en"], autoTranslate: [] }, // German goes public when listed here
+  "affiliate.experiments": { minClicksPerVariant: 200, confidence: 0.95 }, // FR-AFF-13
+  "handsOn.policy": { maxSteps: 40, maxCostUsd: 2, maxMinutes: 15 }, // FR-RES-7
+  "mobile.push": { priceAlerts: true, maxPerDevicePerDay: 3 }, // FR-API-4
 };
 
 /** Idempotent: safe to run on every deploy. Never overwrites values edited in the CMS. */

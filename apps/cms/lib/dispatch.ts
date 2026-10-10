@@ -1,5 +1,5 @@
-import { setJobStatus } from "@repo/core";
-import { eq, getDb, reviewJobs } from "@repo/db";
+import { getSetting, setJobStatus } from "@repo/core";
+import { eq, getDb, products, reviewJobs } from "@repo/db";
 import type { ReviewStep } from "@repo/pipeline/editor";
 import { auth, tasks } from "@trigger.dev/sdk";
 
@@ -22,7 +22,7 @@ function keyProblem(key: string | undefined): string | null {
 export async function triggerTask(
   taskId: string,
   payload: Record<string, unknown>,
-  opts: { tags?: string[] } = {},
+  opts: { tags?: string[]; machine?: "small-2x" | "medium-1x" } = {},
 ): Promise<{ ok: true; runId: string } | { ok: false; reason: string }> {
   const key = process.env.TRIGGER_SECRET_KEY;
   const problem = keyProblem(key);
@@ -32,12 +32,28 @@ export async function triggerTask(
     : "";
   try {
     const handle = await auth.withAuth({ secretKey: key!, previewBranch }, () =>
-      tasks.trigger(taskId, payload, { tags: opts.tags }),
+      tasks.trigger(taskId, payload, { tags: opts.tags, machine: opts.machine }),
     );
     return { ok: true, runId: handle.id };
   } catch (error) {
     return { ok: false, reason: String(error).slice(0, 300) };
   }
+}
+
+/**
+ * Full reviews of products opted in to hands-on trials (FR-RES-7) drive Chromium inside the run,
+ * which does not fit the task's default 0.5 GB machine; only those runs get a larger one.
+ */
+async function machineForJob(jobId: string): Promise<"medium-1x" | undefined> {
+  const db = getDb();
+  const [row] = await db
+    .select({ preset: reviewJobs.preset, optIn: products.handsOnOptIn })
+    .from(reviewJobs)
+    .leftJoin(products, eq(products.id, reviewJobs.productId))
+    .where(eq(reviewJobs.id, jobId))
+    .limit(1);
+  if (row?.preset !== "full_review" || !row.optIn) return undefined;
+  return (await getSetting(db, "pipeline.handsOnTrials")) ? "medium-1x" : undefined;
 }
 
 /**
@@ -54,7 +70,11 @@ export async function dispatchJob(
     if (key) await setJobStatus(getDb(), jobId, "queued", { error: `Dispatch skipped: ${problem}` });
     return { mode: "queued", reason: problem };
   }
-  const result = await triggerTask("review-product", { jobId, ...opts }, { tags: [`job_${jobId}`] });
+  const result = await triggerTask(
+    "review-product",
+    { jobId, ...opts },
+    { tags: [`job_${jobId}`], machine: await machineForJob(jobId).catch(() => undefined) },
+  );
   if (!result.ok) {
     await setJobStatus(getDb(), jobId, "queued", { error: `Dispatch failed: ${result.reason}` });
     return { mode: "queued", reason: result.reason };

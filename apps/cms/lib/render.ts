@@ -1,3 +1,4 @@
+import { localePath, localizedArticlePath } from "@repo/content";
 import type { ArticleRenderData } from "@repo/core";
 import { mediaSrcSet, mediaUrl } from "@repo/media/urls";
 import type { RenderModel } from "@repo/ui/article";
@@ -5,12 +6,15 @@ import type { RenderModel } from "@repo/ui/article";
 /** CMS preview model (FR-CMS-5): same renderer as the public site; links point at the live site. */
 export function toPreviewModel(data: ArticleRenderData): RenderModel {
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  // German articles preview with German renderer labels and /de links (phase 3).
+  const locale = data.article.locale;
+  const review = (slug: string) => `${site}${localizedArticlePath("review", slug, locale)}`;
   const products: RenderModel["products"] = {};
   if (data.product) products[data.product.id] = { name: data.product.name };
   for (const c of data.competitors)
-    products[c.productId] = { name: c.name, href: c.reviewSlug ? `${site}/reviews/${c.reviewSlug}` : null };
+    products[c.productId] = { name: c.name, href: c.reviewSlug ? review(c.reviewSlug) : null };
   for (const p of data.listProducts)
-    products[p.id] = { name: p.name, href: p.reviewSlug ? `${site}/reviews/${p.reviewSlug}` : null };
+    products[p.id] = { name: p.name, href: p.reviewSlug ? review(p.reviewSlug) : null };
   return {
     blocks: data.version.blocks,
     media: Object.fromEntries(
@@ -29,7 +33,8 @@ export function toPreviewModel(data: ArticleRenderData): RenderModel {
     products,
     goHref: (slug, placement) => `${site}/go/${slug}?p=${placement}&a=${data.article.slug}`,
     reportHref: null,
-    disclosureHref: `${site}/affiliate-disclosure`,
+    disclosureHref: `${site}${localePath(locale, "/affiliate-disclosure")}`,
+    locale,
   };
 }
 

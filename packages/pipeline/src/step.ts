@@ -11,6 +11,7 @@ import {
 import { eq, reviewJobs, type Database } from "@repo/db";
 import type { StorageDriver } from "@repo/media";
 import type { z } from "zod";
+import type { BrowserFactory } from "./hands-on/driver";
 import { resolvePrompt, type PromptKey, type ResolvedPrompt } from "./prompts";
 
 /** Pipeline step names in execution order (docs/plan.md §5, SRS §7). */
@@ -41,7 +42,10 @@ export const STEP_NAMES = [
   "tts",
   "render",
   "youtube",
+  "translate",
+  "translate_catalog",
   "smoke",
+  "hands_on",
 ] as const;
 export type StepName = (typeof STEP_NAMES)[number];
 
@@ -57,6 +61,8 @@ export interface StepServices {
   fetch?: typeof fetch;
   /** Site URL and revalidation/IndexNow settings for publishing steps; defaults to process env. */
   publishEnv?: PublishEnv;
+  /** Real browser for hands-on trials (FR-RES-7); only the worker provides one. */
+  makeBrowser?: BrowserFactory;
 }
 
 export interface StepContext {
@@ -70,6 +76,8 @@ export interface StepContext {
   storage: StorageDriver | null;
   fetch: typeof fetch;
   publishEnv: PublishEnv;
+  /** Opens a browser for hands-on trials; null outside the worker. */
+  browser: BrowserFactory | null;
   /** The job's raw intake (FR-INT-1). */
   jobInput: Record<string, unknown>;
   log: (message: string, data?: Record<string, unknown>) => void;
@@ -152,6 +160,7 @@ export async function executeStep<I extends z.ZodType, O extends z.ZodType>(
     storage: services.storage ?? null,
     fetch: services.fetch ?? fetch,
     publishEnv: services.publishEnv ?? publishEnvFromProcess(),
+    browser: services.makeBrowser ?? null,
     jobInput: (job?.input ?? {}) as Record<string, unknown>,
     log: (message, data) => {
       logs.push({ ts: new Date().toISOString(), message, ...(data ? { data } : {}) });

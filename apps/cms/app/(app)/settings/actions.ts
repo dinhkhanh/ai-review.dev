@@ -2,7 +2,9 @@
 
 import {
   activatePromptVersion,
+  publishEnvFromProcess,
   recordAudit,
+  requestRevalidation,
   savePromptVersion,
   setSetting,
   settingSchemas,
@@ -34,6 +36,11 @@ export async function saveSettingAction(_prev: ActionState, form: FormData): Pro
   await setSetting(getDb(), key, parsed.data as never, user.id);
   await recordAudit(getDb(), { actorUserId: user.id, action: "settings.update", entityType: "setting", entityId: key });
   revalidatePath("/settings");
+  // Turning a locale on or off changes which pages exist; cached 404s and switchers must go.
+  if (key === "i18n.policy") {
+    const result = await requestRevalidation(publishEnvFromProcess(), { all: true });
+    if (!result.ok) return { ok: true, message: `Saved ${key}; site revalidation failed, pages update within an hour` };
+  }
   return { ok: true, message: `Saved ${key}` };
 }
 

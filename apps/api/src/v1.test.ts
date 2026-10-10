@@ -12,7 +12,7 @@ import {
   upsertVideo,
 } from "@repo/core";
 import { factSheetSchema } from "@repo/content";
-import { categories, eq } from "@repo/db";
+import { articles, categories, eq } from "@repo/db";
 import { seed } from "@repo/db/seed";
 import { setupTestDb } from "@repo/db/testing";
 import { readFileSync } from "node:fs";
@@ -193,6 +193,78 @@ describe("api v1 content", () => {
 
   it("validates query parameters", async () => {
     expect((await app.request("/v1/reviews?limit=500")).status).toBe(400);
+  });
+});
+
+describe("api v1 locales (phase 3)", () => {
+  beforeAll(async () => {
+    const source = (await getArticleIdBySlug(ctx.db, "notion-review", "review"))!;
+    const [notion] = await ctx.db.select().from(articles).where(eq(articles.id, source));
+    await ctx.db
+      .update(categories)
+      .set({ translations: { de: { name: "Produktivität" } } })
+      .where(eq(categories.slug, "productivity"));
+    const de = await createArticle(ctx.db, {
+      type: "review",
+      productId: notion!.productId,
+      title: "Notion im Test",
+      slug: "notion-test",
+      locale: "de",
+    });
+    await ctx.db.update(articles).set({ translationOfId: source }).where(eq(articles.id, de.id));
+    await addArticleVersion(ctx.db, de.id, {
+      blocks: [{ id: "v", type: "verdict", score: 8.1, summary: "Sehr gut.", bestFor: [], notFor: [] }],
+      overallScore: 8.1,
+      qaScorecard: { hardGatesPassed: true, checks: [], computedAt: new Date().toISOString() },
+    });
+    await transitionArticle(ctx.db, de.id, "in_review");
+    await transitionArticle(ctx.db, de.id, "approved");
+    await publishArticle(ctx.db, de.id, { ignoreCap: true });
+  });
+
+  it("lists English by default and German with ?locale=de", async () => {
+    const enList = (await (await app.request("/v1/reviews")).json()) as { data: Array<Record<string, any>> };
+    expect(enList.data.map((r) => [r.slug, r.locale])).toEqual([["notion-review", "en"]]);
+    const deList = (await (await app.request("/v1/reviews?locale=de")).json()) as {
+      data: Array<Record<string, any>>;
+      pagination: { total: number };
+    };
+    expect(deList.data.map((r) => [r.slug, r.locale, r.category?.name])).toEqual([
+      ["notion-test", "de", "Produktivität"],
+    ]);
+    expect(deList.pagination.total).toBe(1);
+    expect((await app.request("/v1/reviews?locale=fr")).status).toBe(400);
+  });
+
+  it("returns locale URLs and alternates on detail", async () => {
+    const de = (await (await app.request("/v1/reviews/notion-test?locale=de")).json()) as Record<string, any>;
+    expect(de.locale).toBe("de");
+    expect(de.seo.canonicalUrl).toBe("http://localhost:3000/de/reviews/notion-test");
+    expect(de.links.web).toBe("http://localhost:3000/de/reviews/notion-test");
+    expect(de.alternates).toEqual([
+      { locale: "en", slug: "notion-review", url: "http://localhost:3000/reviews/notion-review" },
+    ]);
+    const en = (await (await app.request("/v1/reviews/notion-review")).json()) as Record<string, any>;
+    expect(en.alternates).toEqual([
+      { locale: "de", slug: "notion-test", url: "http://localhost:3000/de/reviews/notion-test" },
+    ]);
+    // Slugs are per locale.
+    expect((await app.request("/v1/reviews/notion-test")).status).toBe(404);
+  });
+
+  it("localises categories, products and search", async () => {
+    const cats = (await (await app.request("/v1/categories?locale=de")).json()) as { data: Array<Record<string, any>> };
+    expect(cats.data.find((c) => c.slug === "productivity")?.name).toBe("Produktivität");
+    const cat = (await (await app.request("/v1/categories/productivity?locale=de")).json()) as Record<string, any>;
+    expect(cat.reviews.map((r: { slug: string }) => r.slug)).toEqual(["notion-test"]);
+    const product = (await (await app.request("/v1/products/notion?locale=de")).json()) as Record<string, any>;
+    expect(product.reviewSlug).toBe("notion-test");
+    const search = (await (await app.request("/v1/search?q=notion&locale=de")).json()) as {
+      data: Array<Record<string, any>>;
+    };
+    expect(search.data.map((h) => [h.slug, h.url])).toEqual([
+      ["notion-test", "http://localhost:3000/de/reviews/notion-test"],
+    ]);
   });
 });
 

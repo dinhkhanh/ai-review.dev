@@ -96,9 +96,39 @@ export const affiliateLinks = pgTable(
     /** Landing URL after following redirects at the last health check. */
     finalUrl: text("final_url"),
     notes: text("notes"),
+    /** A/B offer test this link is a variant of (FR-AFF-13). */
+    experimentId: uuid("experiment_id"),
     ...timestamps(),
   },
-  (t) => [index("affiliate_links_product_status_idx").on(t.productId, t.status)],
+  (t) => [
+    index("affiliate_links_product_status_idx").on(t.productId, t.status),
+    index("affiliate_links_experiment_idx").on(t.experimentId),
+  ],
+);
+
+export const experimentStatus = pgEnum("experiment_status", ["running", "stopped", "completed"]);
+
+/**
+ * A/B offer test (FR-AFF-13): two or more links for one product share a priority and split traffic
+ * by weight; clicks and conversions are reported per variant (link) and a winner can be promoted.
+ */
+export const affiliateExperiments = pgTable(
+  "affiliate_experiments",
+  {
+    id: id(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    status: experimentStatus("status").notNull().default("running"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    winnerLinkId: uuid("winner_link_id"),
+    notes: text("notes"),
+    createdByUserId: text("created_by_user_id"),
+    ...timestamps(),
+  },
+  (t) => [index("affiliate_experiments_product_idx").on(t.productId, t.status)],
 );
 
 /** Public go-link slug -> product (FR-AFF-6). CTAs reference slugs, never raw URLs. */
@@ -132,6 +162,10 @@ export const clicks = pgTable(
     uaHash: text("ua_hash"),
     isBot: boolean("is_bot").notNull().default(false),
     fallback: boolean("fallback").notNull().default(false),
+    /** A/B test the chosen link belonged to at click time (FR-AFF-13). */
+    experimentId: uuid("experiment_id"),
+    /** Page locale the click came from (phase 3 second locale). */
+    locale: text("locale"),
   },
   (t) => [index("clicks_ts_idx").on(t.ts), index("clicks_slug_ts_idx").on(t.goSlug, t.ts)],
 );
@@ -162,6 +196,8 @@ export const conversions = pgTable(
     /** Attribution parsed from the SubID / program (FR-AFF-12). */
     productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
     placement: text("placement"),
+    /** Variant link, when the SubID carried a variant token (FR-AFF-13). */
+    linkId: uuid("link_id"),
     importId: uuid("import_id").references(() => conversionImports.id, { onDelete: "set null" }),
     externalOrderId: text("external_order_id"),
     amount: numeric("amount", { precision: 12, scale: 2 }),
@@ -177,6 +213,7 @@ export const conversions = pgTable(
     index("conversions_subid_idx").on(t.subId),
     index("conversions_occurred_idx").on(t.occurredAt),
     index("conversions_article_idx").on(t.articleId),
+    index("conversions_link_idx").on(t.linkId),
   ],
 );
 

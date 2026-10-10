@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSubId, buildTrackedUrl, parseSubId, sanitizeToken, withUtm, wrapCatchAll } from "./links";
+import { buildSubId, buildTrackedUrl, parseSubId, sanitizeToken, variantToken, withUtm, wrapCatchAll } from "./links";
 
 describe("sanitizeToken", () => {
   it("lowercases, replaces unsafe runs and trims hyphens", () => {
@@ -22,10 +22,29 @@ describe("buildSubId / parseSubId", () => {
     expect(buildSubId("x".repeat(100), "y".repeat(100)).length).toBeLessThanOrEqual(64);
   });
   it("round-trips", () => {
-    expect(parseSubId("notion-review--verdict")).toEqual({ articleSlug: "notion-review", placement: "verdict" });
-    expect(parseSubId("go--direct")).toEqual({ articleSlug: null, placement: null });
-    expect(parseSubId("lonely")).toEqual({ articleSlug: "lonely", placement: null });
-    expect(parseSubId("")).toEqual({ articleSlug: null, placement: null });
+    expect(parseSubId("notion-review--verdict")).toEqual({
+      articleSlug: "notion-review",
+      placement: "verdict",
+      variant: null,
+    });
+    expect(parseSubId("go--direct")).toEqual({ articleSlug: null, placement: null, variant: null });
+    expect(parseSubId("lonely")).toEqual({ articleSlug: "lonely", placement: null, variant: null });
+    expect(parseSubId("")).toEqual({ articleSlug: null, placement: null, variant: null });
+  });
+  it("adds an A/B variant token and stays within 64 characters (FR-AFF-13)", () => {
+    const id = "3F9A1C22-0000-4000-8000-000000000000";
+    expect(variantToken(id)).toBe("v3f9a1c");
+    expect(buildSubId("notion-review", "sticky_mobile", id)).toBe("notion-review--sticky_mobile--v3f9a1c");
+    expect(buildSubId("x".repeat(100), "y".repeat(100), id).length).toBeLessThanOrEqual(64);
+    expect(buildSubId(null, null, id)).toBe("go--direct--v3f9a1c");
+    expect(parseSubId("notion-review--sticky_mobile--v3f9a1c")).toEqual({
+      articleSlug: "notion-review",
+      placement: "sticky_mobile",
+      variant: "3f9a1c",
+    });
+    // Networks may upper-case SubIDs in reports; anything that is not a token is ignored.
+    expect(parseSubId("A--B--V3F9A1C")).toEqual({ articleSlug: "a", placement: "b", variant: "3f9a1c" });
+    expect(parseSubId("a--b--vzz").variant).toBeNull();
   });
 });
 

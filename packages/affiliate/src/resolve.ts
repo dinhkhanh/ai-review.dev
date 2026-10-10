@@ -14,6 +14,8 @@ export interface LinkCandidate {
   weight: number;
   startsAt: Date | null;
   endsAt: Date | null;
+  /** Running A/B test this link is a variant of (FR-AFF-13); null when not in a running test. */
+  experimentId?: string | null;
   program: {
     id: string;
     status: ProgramStatus;
@@ -50,6 +52,8 @@ export interface Resolution {
   programId: string | null;
   fallback: boolean;
   subId: string;
+  /** Running A/B test the chosen link belongs to (FR-AFF-13). */
+  experimentId: string | null;
 }
 
 /** A link is usable when it and its program are active and today is inside its date window. */
@@ -96,21 +100,24 @@ export function selectLink(links: LinkCandidate[], ctx: ResolveContext = {}): Li
  * URL cannot be built is skipped and the vendor fallback is used, so visitors never see an error.
  */
 export function resolveGoLink(table: GoLinkTable, ctx: ResolveContext = {}): Resolution {
-  const subId = buildSubId(ctx.articleSlug, ctx.placement);
   let remaining = table.links;
   while (remaining.length > 0) {
     const link = selectLink(remaining, ctx);
     if (!link) break;
+    const experimentId = link.experimentId ?? null;
+    // Variant clicks carry the link in the SubID so conversions attribute to it (FR-AFF-13).
+    const subId = buildSubId(ctx.articleSlug, ctx.placement, experimentId ? link.id : null);
     try {
       const url = buildTrackedUrl(link.destinationUrl, link.program?.linkFormat ?? null, {
         subId,
         network: link.program?.network ?? null,
       });
-      return { url, linkId: link.id, programId: link.program?.id ?? null, fallback: false, subId };
+      return { url, linkId: link.id, programId: link.program?.id ?? null, fallback: false, subId, experimentId };
     } catch {
       remaining = remaining.filter((l) => l.id !== link.id);
     }
   }
+  const subId = buildSubId(ctx.articleSlug, ctx.placement);
   const vendorUrl = withUtm(table.fallbackUrl, { campaign: table.slug, content: ctx.placement ?? null });
   return {
     url: table.catchAll ? wrapCatchAll(vendorUrl, table.catchAll, subId) : vendorUrl,
@@ -118,6 +125,7 @@ export function resolveGoLink(table: GoLinkTable, ctx: ResolveContext = {}): Res
     programId: null,
     fallback: true,
     subId,
+    experimentId: null,
   };
 }
 

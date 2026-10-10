@@ -17,7 +17,7 @@ import {
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
-import { DEFAULT_LOCALE, id, timestamps } from "./_shared";
+import { DEFAULT_LOCALE, id, timestamps, type LocalizedFields } from "./_shared";
 
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
@@ -34,6 +34,8 @@ export const categories = pgTable("categories", {
   position: smallint("position").notNull().default(0),
   /** Rubric override for this category (FR-CON-3); null means DEFAULT_RUBRIC. */
   rubric: jsonb("rubric").$type<Array<{ key: string; label: string; weight: number }>>(),
+  /** Localised name/description per non-default locale (phase 3 second locale). */
+  translations: jsonb("translations").$type<LocalizedFields>().notNull().default({}),
   ...timestamps(),
 });
 
@@ -69,6 +71,13 @@ export const products = pgTable(
     discontinuedAt: timestamp("discontinued_at", { withTimezone: true }),
     /** Why the product is discontinued/archived, shown to visitors in the banner. */
     statusNote: text("status_note"),
+    /** Localised tagline per non-default locale; products themselves are shared across locales. */
+    translations: jsonb("translations").$type<LocalizedFields>().notNull().default({}),
+    /**
+     * Hands-on trials (FR-RES-7): the browser agent may sign up for a free trial only when this is
+     * set per product AND the global `pipeline.handsOnTrials` switch is on.
+     */
+    handsOnOptIn: boolean("hands_on_opt_in").notNull().default(false),
     ...timestamps(),
   },
   (t) => [

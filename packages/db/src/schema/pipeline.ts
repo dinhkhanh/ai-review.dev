@@ -21,6 +21,10 @@ export const jobPreset = pgEnum("job_preset", [
   "alternatives",
   "best_of",
   "refresh",
+  /** Phase 3: translate a published article into another locale. */
+  "translate",
+  /** Phase 3: standalone hands-on trial session for an opted-in product (FR-RES-7). */
+  "hands_on",
 ]);
 export const jobStatus = pgEnum("job_status", [
   "queued",
@@ -172,4 +176,64 @@ export const evalRuns = pgTable(
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
   (t) => [index("eval_runs_suite_idx").on(t.suite, t.startedAt)],
+);
+
+/**
+ * Encrypted credential vault (FR-RES-7). Values are AES-256-GCM ciphertext under `VAULT_KEY`
+ * (env, never stored); plaintext never reaches logs, job outputs or the CMS after entry.
+ */
+export const vaultSecrets = pgTable(
+  "vault_secrets",
+  {
+    id: id(),
+    /** Stable lookup name, e.g. "test_identity.default" or "product.<slug>.login". */
+    name: text("name").notNull(),
+    /** "test_identity" (shared sign-up persona) or "product_credential". */
+    kind: text("kind").notNull(),
+    productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }),
+    /** base64(iv | authTag | ciphertext) of a JSON object. */
+    ciphertext: text("ciphertext").notNull(),
+    /** Key version, so `VAULT_KEY` can be rotated. */
+    keyVersion: integer("key_version").notNull().default(1),
+    /** Non-secret description shown in the CMS (e.g. which fields the JSON holds). */
+    description: text("description"),
+    createdByUserId: text("created_by_user_id"),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("vault_secrets_name_uq").on(t.name), index("vault_secrets_product_idx").on(t.productId)],
+);
+
+export const handsOnStatus = pgEnum("hands_on_status", [
+  "queued",
+  "running",
+  "succeeded",
+  /** Stopped by a guardrail (payment wall, captcha, phone verification, ToS) — not an error. */
+  "blocked",
+  "failed",
+]);
+
+/** One browser-agent trial session (FR-RES-7): action log, in-app screenshots and notes. */
+export const handsOnSessions = pgTable(
+  "hands_on_sessions",
+  {
+    id: id(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    jobId: uuid("job_id").references(() => reviewJobs.id, { onDelete: "set null" }),
+    status: handsOnStatus("status").notNull().default("queued"),
+    /** Why the agent stopped (guardrail name or error summary). */
+    stopReason: text("stop_reason"),
+    /** Ordered action log: [{ ts, action, target?, url?, note? }]; secrets are redacted. */
+    actions: jsonb("actions").$type<Array<Record<string, unknown>>>().notNull().default([]),
+    /** Structured findings for the fact sheet/writer: { onboarding, observations[], limits[] ... }. */
+    findings: jsonb("findings").$type<Record<string, unknown>>(),
+    screenshotAssetIds: uuid("screenshot_asset_ids").array().notNull().default([]),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [index("hands_on_sessions_product_idx").on(t.productId, t.createdAt)],
 );

@@ -24,6 +24,7 @@ Two-factor enrolment is mandatory on first sign-in.
 | `apps/cms`           | Admin CMS (Next.js 16, Better Auth + TOTP 2FA)                                          |
 | `apps/api`           | Public REST API v1 (Hono, OpenAPI 3.1 at `/openapi.json`, docs at `/docs`)              |
 | `apps/worker`        | Pipeline orchestration (Trigger.dev v4)                                                 |
+| `apps/mobile`        | Expo app (SDK 57): reader, search, saved items, price alerts; English and German        |
 | `packages/db`        | Drizzle schema, migrations, seed, test helpers                                          |
 | `packages/core`      | Domain services (products, jobs, cost ledger, settings, audit)                          |
 | `packages/ai`        | Claude wrapper (effort, caching, refusal fallback, cost tracking) and Firecrawl adapter |
@@ -45,6 +46,8 @@ pnpm db:generate                              # after editing packages/db/src/sc
 pnpm db:migrate && pnpm db:seed
 pnpm --filter worker smoke [--llm]            # pipeline smoke test (--llm makes one tiny Haiku call)
 pnpm --filter api openapi                     # print the OpenAPI document
+pnpm --filter api generate-client             # refresh packages/contracts after API changes
+pnpm --filter mobile dev                      # Expo dev server (set EXPO_PUBLIC_API_URL to your LAN API)
 ```
 
 Tests use a separate database per package, created from `TEST_DATABASE_URL`, so Turborepo can run them in parallel.

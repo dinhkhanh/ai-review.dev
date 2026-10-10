@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AI Review API",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "Public read API for ai-review.dev web and mobile clients."
   },
   "servers": [
@@ -16,6 +16,14 @@
     }
   ],
   "components": {
+    "securitySchemes": {
+      "deviceToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "<deviceId>.<secret>",
+        "description": "Device token from POST /v1/devices. Anonymous; one per app install."
+      }
+    },
     "schemas": {
       "HealthResponse": {
         "type": "object",
@@ -97,6 +105,9 @@
             "type": "string",
             "example": "notion-review"
           },
+          "locale": {
+            "$ref": "#/components/schemas/Locale"
+          },
           "title": {
             "type": "string"
           },
@@ -155,6 +166,7 @@
         },
         "required": [
           "slug",
+          "locale",
           "title",
           "description",
           "score",
@@ -166,6 +178,11 @@
           "image",
           "logo"
         ]
+      },
+      "Locale": {
+        "type": "string",
+        "enum": ["en", "de"],
+        "example": "de"
       },
       "Image": {
         "type": ["object", "null"],
@@ -260,6 +277,16 @@
         "properties": {
           "slug": {
             "type": "string"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/Locale"
+          },
+          "alternates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Alternate"
+            },
+            "description": "Live versions in other locales"
           },
           "title": {
             "type": "string"
@@ -387,7 +414,8 @@
                   "type": "string"
                 },
                 "reviewSlug": {
-                  "type": ["string", "null"]
+                  "type": ["string", "null"],
+                  "description": "Review slug in the same locale, if any"
                 },
                 "note": {
                   "type": ["string", "null"]
@@ -406,6 +434,8 @@
         },
         "required": [
           "slug",
+          "locale",
+          "alternates",
           "title",
           "seo",
           "score",
@@ -423,6 +453,22 @@
           "competitors",
           "videos"
         ]
+      },
+      "Alternate": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "$ref": "#/components/schemas/Locale"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": ["locale", "slug", "url"]
       },
       "ArticleBody": {
         "type": "array",
@@ -1369,6 +1415,9 @@
           "type": {
             "$ref": "#/components/schemas/GuideType"
           },
+          "locale": {
+            "$ref": "#/components/schemas/Locale"
+          },
           "slug": {
             "type": "string",
             "example": "notion-vs-coda"
@@ -1416,6 +1465,7 @@
         },
         "required": [
           "type",
+          "locale",
           "slug",
           "title",
           "description",
@@ -1440,6 +1490,16 @@
           },
           "slug": {
             "type": "string"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/Locale"
+          },
+          "alternates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Alternate"
+            },
+            "description": "Live versions in other locales"
           },
           "title": {
             "type": "string"
@@ -1572,6 +1632,8 @@
         "required": [
           "type",
           "slug",
+          "locale",
+          "alternates",
           "title",
           "seo",
           "publishedAt",
@@ -1905,6 +1967,9 @@
             "type": "string",
             "maxLength": 60
           },
+          "locale": {
+            "$ref": "#/components/schemas/Locale"
+          },
           "turnstileToken": {
             "type": "string",
             "maxLength": 4096,
@@ -1912,6 +1977,237 @@
           }
         },
         "required": ["email"]
+      },
+      "DeviceRegisterResponse": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "token": {
+            "type": "string",
+            "description": "Send as `Authorization: Bearer <token>`. Shown once; store it in secure storage."
+          }
+        },
+        "required": ["deviceId", "token"]
+      },
+      "DeviceRegisterRequest": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/DevicePlatform"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/DeviceLocale"
+          },
+          "appVersion": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "pushToken": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^Expo(nent)?PushToken\\[[^\\]]+\\]$",
+            "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+          }
+        },
+        "required": ["platform"]
+      },
+      "DevicePlatform": {
+        "type": "string",
+        "enum": ["ios", "android", "web"]
+      },
+      "DeviceLocale": {
+        "type": "string",
+        "enum": ["en", "de"],
+        "default": "en"
+      },
+      "Device": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/DevicePlatform"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/DeviceLocale"
+          },
+          "pushEnabled": {
+            "type": "boolean"
+          },
+          "savedCount": {
+            "type": "integer"
+          },
+          "alertCount": {
+            "type": "integer"
+          }
+        },
+        "required": ["deviceId", "platform", "locale", "pushEnabled", "savedCount", "alertCount"]
+      },
+      "DeviceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "pushToken": {
+            "type": ["string", "null"],
+            "maxLength": 200,
+            "pattern": "^Expo(nent)?PushToken\\[[^\\]]+\\]$",
+            "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+            "description": "null turns push off"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/DeviceLocale"
+          },
+          "appVersion": {
+            "type": "string",
+            "maxLength": 40
+          }
+        }
+      },
+      "SavedItemList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SavedItem"
+            }
+          }
+        },
+        "required": ["data"]
+      },
+      "SavedItem": {
+        "type": "object",
+        "properties": {
+          "articleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["review", "comparison", "alternatives", "best_of"]
+          },
+          "slug": {
+            "type": "string"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/DeviceLocale"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
+          "score": {
+            "type": ["number", "null"]
+          },
+          "productName": {
+            "type": ["string", "null"]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical web URL"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "articleId",
+          "type",
+          "slug",
+          "locale",
+          "title",
+          "description",
+          "score",
+          "productName",
+          "url",
+          "savedAt"
+        ]
+      },
+      "SaveRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["review", "comparison", "alternatives", "best_of"],
+            "default": "review"
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "locale": {
+            "$ref": "#/components/schemas/DeviceLocale"
+          }
+        },
+        "required": ["slug"]
+      },
+      "PriceAlertList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceAlert"
+            }
+          }
+        },
+        "required": ["data"]
+      },
+      "PriceAlert": {
+        "type": "object",
+        "properties": {
+          "productSlug": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "reviewSlug": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastChange": {
+            "$ref": "#/components/schemas/PriceChangeSummary"
+          }
+        },
+        "required": ["productSlug", "productName", "reviewSlug", "createdAt", "lastChange"]
+      },
+      "PriceChangeSummary": {
+        "type": ["object", "null"],
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "detectedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["summary", "detectedAt"]
+      },
+      "PriceAlertRequest": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Product slug"
+          }
+        },
+        "required": ["product"]
       }
     },
     "parameters": {}
@@ -1949,6 +2245,20 @@
       "get": {
         "tags": ["catalog"],
         "summary": "List review categories",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "All categories in display order",
@@ -1976,6 +2286,18 @@
             "required": true,
             "name": "slug",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2047,6 +2369,18 @@
             "required": false,
             "name": "offset",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2076,6 +2410,18 @@
             "required": true,
             "name": "slug",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2144,6 +2490,18 @@
             "required": false,
             "name": "offset",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2181,6 +2539,18 @@
             "required": true,
             "name": "slug",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2232,6 +2602,18 @@
             "required": false,
             "name": "offset",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2261,6 +2643,18 @@
             "required": true,
             "name": "slug",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2341,6 +2735,18 @@
             "required": false,
             "name": "offset",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2369,6 +2775,18 @@
             },
             "required": false,
             "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["en", "de"],
+              "default": "en",
+              "description": "Content locale. Articles, category names and taglines are returned in this locale."
+            },
+            "required": false,
+            "description": "Content locale. Articles, category names and taglines are returned in this locale.",
+            "name": "locale",
             "in": "query"
           }
         ],
@@ -2570,6 +2988,438 @@
           },
           "429": {
             "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices": {
+      "post": {
+        "tags": ["mobile"],
+        "summary": "Register an app install anonymously; returns the device token (shown once)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceRegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceRegisterResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/me": {
+      "get": {
+        "tags": ["mobile"],
+        "summary": "This device's settings and counts",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid device token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["mobile"],
+        "summary": "Update the push token (null turns push off), locale or app version",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid device token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["mobile"],
+        "summary": "Delete this device with its saved items and alerts",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid device token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/saved": {
+      "get": {
+        "tags": ["mobile"],
+        "summary": "Saved articles, newest first",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedItemList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid device token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["mobile"],
+        "summary": "Save an article (idempotent)",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved items after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedItemList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid device token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Article not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Saved list is full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/saved/{articleId}": {
+      "delete": {
+        "tags": ["mobile"],
+        "summary": "Remove a saved article",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "articleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved items after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedItemList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid device token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/alerts": {
+      "get": {
+        "tags": ["mobile"],
+        "summary": "Products this device gets price-change pushes for",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Price alerts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceAlertList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid device token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["mobile"],
+        "summary": "Follow a product's pricing (idempotent)",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceAlertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Price alerts after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceAlertList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid device token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Too many price alerts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/alerts/{product}": {
+      "delete": {
+        "tags": ["mobile"],
+        "summary": "Stop following a product's pricing",
+        "security": [
+          {
+            "deviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "required": true,
+            "name": "product",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Price alerts after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceAlertList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid device token",
             "content": {
               "application/json": {
                 "schema": {

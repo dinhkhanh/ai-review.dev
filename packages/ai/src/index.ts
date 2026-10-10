@@ -5,3 +5,4 @@ export * from "./embeddings";
 export * from "./tts";
 export * from "./youtube";
 export * from "./images";
+export * from "./search-console";

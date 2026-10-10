@@ -1,10 +1,25 @@
 import { z } from "@hono/zod-openapi";
-import { articleBodySchema } from "@repo/content";
+import { articleBodySchema, CONTENT_LOCALES, DEFAULT_CONTENT_LOCALE } from "@repo/content";
 
 /**
  * Public API v1 contracts (FR-API-1). These schemas generate the OpenAPI document and are the
  * only thing the mobile app depends on (NFR-13). Additive changes only within /v1.
  */
+
+/** Content locales (phase 3). English is the default; German articles are translations of English ones. */
+export const LocaleSchema = z.enum(CONTENT_LOCALES).openapi("Locale", { example: "de" });
+
+/** `?locale=` query parameter accepted by every read endpoint (default `en`). */
+export const LocaleQuerySchema = z
+  .enum(CONTENT_LOCALES)
+  .default(DEFAULT_CONTENT_LOCALE)
+  .openapi({
+    param: { name: "locale", in: "query" },
+    description: "Content locale. Articles, category names and taglines are returned in this locale.",
+  });
+
+/** The same article in another locale (hreflang; only live versions are listed). */
+export const AlternateSchema = z.object({ locale: LocaleSchema, slug: z.string(), url: z.url() }).openapi("Alternate");
 
 export const ErrorResponseSchema = z
   .object({
@@ -48,6 +63,7 @@ export const ImageSchema = z
 export const ReviewSummarySchema = z
   .object({
     slug: z.string().openapi({ example: "notion-review" }),
+    locale: LocaleSchema,
     title: z.string(),
     description: z.string().nullable(),
     score: z.number().nullable().openapi({ description: "Editorial score 0–10, computed from the rubric" }),
@@ -101,6 +117,8 @@ export const VideoSchema = z
 export const ReviewDetailSchema = z
   .object({
     slug: z.string(),
+    locale: LocaleSchema,
+    alternates: z.array(AlternateSchema).openapi({ description: "Live versions in other locales" }),
     title: z.string(),
     seo: z.object({ title: z.string(), description: z.string().nullable(), canonicalUrl: z.url() }),
     score: z.number().nullable(),
@@ -131,7 +149,11 @@ export const ReviewDetailSchema = z
       web: z.url(),
     }),
     competitors: z.array(
-      z.object({ name: z.string(), reviewSlug: z.string().nullable(), note: z.string().nullable() }),
+      z.object({
+        name: z.string(),
+        reviewSlug: z.string().nullable().openapi({ description: "Review slug in the same locale, if any" }),
+        note: z.string().nullable(),
+      }),
     ),
     videos: z.array(VideoSchema).openapi({ description: "Video reviews on YouTube; empty when none" }),
   })
@@ -192,6 +214,7 @@ export const GuideTypeSchema = z.enum(["comparison", "alternatives", "best_of"])
 export const GuideSummarySchema = z
   .object({
     type: GuideTypeSchema,
+    locale: LocaleSchema,
     slug: z.string().openapi({ example: "notion-vs-coda" }),
     title: z.string(),
     description: z.string().nullable(),
@@ -213,6 +236,8 @@ export const GuideDetailSchema = z
   .object({
     type: GuideTypeSchema,
     slug: z.string(),
+    locale: LocaleSchema,
+    alternates: z.array(AlternateSchema).openapi({ description: "Live versions in other locales" }),
     title: z.string(),
     seo: z.object({ title: z.string(), description: z.string().nullable(), canonicalUrl: z.url() }),
     publishedAt: z.iso.datetime().nullable(),
@@ -282,13 +307,21 @@ export const ReportRequestSchema = z
   .openapi("ReportRequest");
 
 export const NewsletterRequestSchema = z
-  .object({ email: z.email().max(200), source: z.string().max(60).optional(), turnstileToken })
+  .object({
+    email: z.email().max(200),
+    source: z.string().max(60).optional(),
+    /** Digest language (FR-WEB-9); defaults to English. */
+    locale: LocaleSchema.optional(),
+    turnstileToken,
+  })
   .openapi("NewsletterRequest");
 
 export const AcceptedResponseSchema = z
   .object({ status: z.literal("accepted"), message: z.string() })
   .openapi("AcceptedResponse");
 
+export type Locale = z.infer<typeof LocaleSchema>;
+export type Alternate = z.infer<typeof AlternateSchema>;
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 export type Category = z.infer<typeof CategorySchema>;
@@ -304,4 +337,5 @@ export type Deal = z.infer<typeof DealSchema>;
 export type GuideSummary = z.infer<typeof GuideSummarySchema>;
 export type GuideDetail = z.infer<typeof GuideDetailSchema>;
 
-export const API_VERSION = "1.3.0";
+export const API_VERSION = "1.4.0";
+export * from "./mobile";

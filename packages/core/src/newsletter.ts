@@ -1,12 +1,14 @@
 import { randomBytes } from "node:crypto";
+import { DEFAULT_CONTENT_LOCALE, isContentLocale, localePath, type ContentLocale } from "@repo/content";
 import { eq, newsletterSubscribers, type DbOrTx } from "@repo/db";
 import { z } from "zod";
 import { DomainError } from "./errors";
 import { sendEmail, type NotifyEnv } from "./notifications";
 
 /**
- * Newsletter sign-up with double opt-in (FR-API-3; the digest itself is FR-WEB-9, phase 3).
- * Responses never reveal whether an address is already subscribed.
+ * Newsletter sign-up with double opt-in (FR-API-3; the weekly digest is FR-WEB-9, see digest.ts).
+ * Responses never reveal whether an address is already subscribed. Each subscriber has a locale:
+ * the confirmation email and the digest they receive are in that language.
  */
 
 /** Minimum gap between confirmation emails to the same address. */
@@ -37,10 +39,38 @@ export function normalizeEmail(input: string): string {
 
 const newToken = () => randomBytes(24).toString("base64url");
 
-function confirmationEmail(env: NewsletterEnv, token: string) {
+/** Unknown or missing locales fall back to English. */
+export function newsletterLocale(input: unknown): ContentLocale {
+  return isContentLocale(input) ? input : DEFAULT_CONTENT_LOCALE;
+}
+
+/** Visitor-facing newsletter page (`/newsletter/confirm`, …) in the subscriber's locale. */
+export function newsletterPageUrl(
+  env: Pick<NewsletterEnv, "siteUrl">,
+  locale: string,
+  page: "confirm" | "unsubscribe" | "thanks",
+  token?: string,
+): string {
+  const path = localePath(locale, `/newsletter/${page}`);
+  return `${env.siteUrl}${path}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+}
+
+function confirmationEmail(env: NewsletterEnv, token: string, locale: ContentLocale) {
   const name = env.siteName ?? "AI Review";
-  const confirm = `${env.siteUrl}/newsletter/confirm?token=${encodeURIComponent(token)}`;
-  const unsubscribe = `${env.siteUrl}/newsletter/unsubscribe?token=${encodeURIComponent(token)}`;
+  const confirm = newsletterPageUrl(env, locale, "confirm", token);
+  const unsubscribe = newsletterPageUrl(env, locale, "unsubscribe", token);
+  if (locale === "de") {
+    return {
+      subject: `Bitte bestätige dein Abo bei ${name}`,
+      text: [
+        `Bitte bestätige, dass du die wöchentliche E-Mail von ${name} mit neuen und aktualisierten Testberichten erhalten möchtest:`,
+        confirm,
+        "",
+        "Wenn du dich nicht angemeldet hast, ignoriere diese E-Mail einfach. Es passiert dann nichts.",
+        `Jederzeit abmelden: ${unsubscribe}`,
+      ].join("\n"),
+    };
+  }
   return {
     subject: `Confirm your ${name} subscription`,
     text: [
@@ -60,12 +90,13 @@ function confirmationEmail(env: NewsletterEnv, token: string) {
  */
 export async function subscribeNewsletter(
   db: DbOrTx,
-  input: { email: string; source?: string | null },
+  input: { email: string; source?: string | null; locale?: string | null },
   opts: { env?: NewsletterEnv; now?: Date; fetch?: typeof fetch } = {},
 ): Promise<"sent" | "already_confirmed" | "cooldown" | "not_sent"> {
   const env = opts.env ?? newsletterEnvFromProcess();
   const now = opts.now ?? new Date();
   const email = normalizeEmail(input.email);
+  const locale = newsletterLocale(input.locale);
   const [existing] = await db
     .select()
     .from(newsletterSubscribers)
@@ -83,14 +114,14 @@ export async function subscribeNewsletter(
   if (existing) {
     await db
       .update(newsletterSubscribers)
-      .set({ token, tokenSentAt: now, confirmedAt: null, unsubscribedAt: null })
+      .set({ token, tokenSentAt: now, confirmedAt: null, unsubscribedAt: null, locale })
       .where(eq(newsletterSubscribers.id, existing.id));
   } else {
     await db
       .insert(newsletterSubscribers)
-      .values({ email, token, tokenSentAt: now, source: input.source?.slice(0, 60) ?? null });
+      .values({ email, token, tokenSentAt: now, locale, source: input.source?.slice(0, 60) ?? null });
   }
-  const result = await sendEmail(env, { to: [email], ...confirmationEmail(env, token) }, opts.fetch);
+  const result = await sendEmail(env, { to: [email], ...confirmationEmail(env, token, locale) }, opts.fetch);
   return result === "sent" ? "sent" : "not_sent";
 }
 

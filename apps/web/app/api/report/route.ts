@@ -1,4 +1,5 @@
-import { createErrorReport, getArticleIdBySlug } from "@repo/core";
+import { isContentLocale, localePath } from "@repo/content";
+import { createErrorReport, getLiveArticleIdBySlug } from "@repo/core";
 import { getDb } from "@repo/db";
 import type { NextRequest } from "next/server";
 import { guardForm } from "../../../lib/visitor";
@@ -9,26 +10,31 @@ import { guardForm } from "../../../lib/visitor";
  */
 export async function POST(request: NextRequest) {
   const form = await request.formData();
-  if (String(form.get("website") ?? "")) return Response.redirect(new URL("/report/thanks", request.url), 303);
+  const rawLocale = form.get("locale");
+  const locale = isContentLocale(rawLocale) ? rawLocale : null;
+  const thanks = new URL(localePath(locale, "/report/thanks"), request.url);
+  if (String(form.get("website") ?? "")) return Response.redirect(thanks, 303);
   const articleSlug = String(form.get("article") ?? "").slice(0, 120);
   const message = String(form.get("message") ?? "");
   const email = String(form.get("email") ?? "") || null;
   const kind = String(form.get("kind") ?? "pricing");
   // Rate limit + Turnstile (FR-API-3, NFR-7).
   const guard = await guardForm(request, form, "report");
-  if (!guard.ok) {
-    return Response.redirect(new URL(`/report?article=${encodeURIComponent(articleSlug)}&error=1`, request.url), 303);
-  }
+  const retry = new URL(
+    `${localePath(locale, "/report")}?article=${encodeURIComponent(articleSlug)}&error=1`,
+    request.url,
+  );
+  if (!guard.ok) return Response.redirect(retry, 303);
   try {
     const db = getDb();
     await createErrorReport(db, {
-      articleId: articleSlug ? await getArticleIdBySlug(db, articleSlug) : null,
+      articleId: articleSlug ? await getLiveArticleIdBySlug(db, articleSlug, locale) : null,
       kind: ["pricing", "error", "other"].includes(kind) ? kind : "other",
       message,
       email,
     });
   } catch {
-    return Response.redirect(new URL(`/report?article=${encodeURIComponent(articleSlug)}&error=1`, request.url), 303);
+    return Response.redirect(retry, 303);
   }
-  return Response.redirect(new URL("/report/thanks", request.url), 303);
+  return Response.redirect(thanks, 303);
 }

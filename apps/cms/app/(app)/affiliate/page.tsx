@@ -1,4 +1,11 @@
-import { clickSummary, listLinkHealth, listPrograms, recentClicks } from "@repo/core";
+import {
+  clickSummary,
+  getExperimentReport,
+  listExperiments,
+  listLinkHealth,
+  listPrograms,
+  recentClicks,
+} from "@repo/core";
 import { getDb } from "@repo/db";
 import { Button } from "@repo/ui/button";
 import Link from "next/link";
@@ -7,23 +14,29 @@ import { SubmitButton } from "../../../components/submit-button";
 import { Empty, fmtDate, PageHeader, StatusBadge, Table, Tabs } from "../../../components/ui";
 import { setProgramStatusAction } from "../products/actions";
 import { checkAllLinksAction, checkLinkNowAction } from "./actions";
+import { ExperimentReportTable } from "./experiment-report";
 
 export const metadata = { title: "Affiliate" };
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 3600 * 1000);
 
-/** Affiliate workspace (FR-CMS-6, FR-AFF-2): programs to apply to, active programs, clicks. */
+/** Affiliate workspace (FR-CMS-6, FR-AFF-2): programs to apply to, active programs, clicks, A/B tests. */
 export default async function AffiliatePage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const { view = "apply" } = await searchParams;
   const db = getDb();
-  const [toApply, pending, active, summary, clicks, health] = await Promise.all([
+  const [toApply, pending, active, summary, clicks, health, experiments] = await Promise.all([
     listPrograms(db, { statuses: ["found"] }),
     listPrograms(db, { statuses: ["applied", "approved"] }),
     listPrograms(db, { statuses: ["active", "paused"] }),
     clickSummary(db, daysAgo(30)),
     recentClicks(db, 50),
     listLinkHealth(db),
+    listExperiments(db, { status: "running" }),
   ]);
+  const reports =
+    view === "experiments"
+      ? await Promise.all(experiments.map(({ experiment }) => getExperimentReport(db, experiment.id)))
+      : [];
   const failing = health.filter((l) => l.status === "broken" || l.healthFailures > 0).length;
   const rows = view === "apply" ? toApply : view === "pending" ? pending : active;
   return (
@@ -37,9 +50,40 @@ export default async function AffiliatePage({ searchParams }: { searchParams: Pr
           { key: "active", label: "Active", href: "/affiliate?view=active", count: active.length },
           { key: "clicks", label: "Clicks", href: "/affiliate?view=clicks" },
           { key: "health", label: "Link health", href: "/affiliate?view=health", count: failing },
+          { key: "experiments", label: "A/B tests", href: "/affiliate?view=experiments", count: experiments.length },
         ]}
       />
-      {view === "health" ? (
+      {view === "experiments" ? (
+        <section className="space-y-6">
+          <p className="max-w-2xl text-sm text-muted">
+            Running A/B offer tests (FR-AFF-13). Start, stop and complete tests from a product&apos;s Affiliate tab.
+            Conversions attribute to a variant once network reports or CSV imports include the SubID.
+          </p>
+          {reports.length ? (
+            reports.map((report) => {
+              const row = experiments.find((e) => e.experiment.id === report.experiment.id)!;
+              return (
+                <div key={report.experiment.id} className="space-y-3">
+                  <h2 className="flex flex-wrap items-center gap-3">
+                    <Link
+                      href={`/products/${report.experiment.productId}?tab=affiliate#experiments`}
+                      className="font-semibold hover:underline"
+                    >
+                      {row.productName}: {report.experiment.name}
+                    </Link>
+                    <span className="text-sm text-muted">
+                      since {fmtDate(report.experiment.startedAt)} · {report.totalClicks} human clicks
+                    </span>
+                  </h2>
+                  <ExperimentReportTable report={report} />
+                </div>
+              );
+            })
+          ) : (
+            <Empty>No A/B tests running.</Empty>
+          )}
+        </section>
+      ) : view === "health" ? (
         <section className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <p className="max-w-2xl text-sm text-muted">

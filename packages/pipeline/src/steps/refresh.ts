@@ -1,4 +1,13 @@
-import { addArticleVersion, getArticle, getCurrentVersion, latestFactSheet, type FactChange } from "@repo/core";
+import {
+  addArticleVersion,
+  diffPricing,
+  getArticle,
+  getCurrentVersion,
+  getFactSheetVersion,
+  latestFactSheet,
+  recordPriceChange,
+  type FactChange,
+} from "@repo/core";
 import { z } from "zod";
 import { pricingTableFromFactSheet, SECTION_KEYS, type SectionKey } from "../article-builder";
 import { rewriteSectionBlocks } from "../section";
@@ -53,6 +62,13 @@ export const refreshPlanStep = defineStep({
     const sheet = await latestFactSheet(ctx.db, input.productId);
     if (!sheet) throw new Error("No fact sheet; research did not complete");
     const plan = planRefresh(sheet.diffFromPrevious ?? []);
+    if (plan.pricingChanged && sheet.version > 1) {
+      // Plan prices moved: queue a price-change push for devices following the product (FR-API-4).
+      const previous = await getFactSheetVersion(ctx.db, input.productId, sheet.version - 1);
+      const lines = diffPricing(previous?.data, sheet.data);
+      const recorded = await recordPriceChange(ctx.db, { productId: input.productId, jobId: ctx.jobId, lines });
+      if (recorded) ctx.log("price change recorded", { lines: lines.length });
+    }
     ctx.log("refresh plan", {
       material: plan.material,
       sections: plan.sections,

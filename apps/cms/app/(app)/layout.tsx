@@ -17,10 +17,16 @@ const NAV = [
   { href: "/affiliate", label: "Affiliate", adminOnly: false },
   { href: "/deals", label: "Deals", adminOnly: false },
   { href: "/analytics", label: "Analytics", adminOnly: false },
+  { href: "/decay", label: "Content decay", adminOnly: false },
+  { href: "/translations", label: "Translations", adminOnly: false },
+  { href: "/newsletter", label: "Newsletter", adminOnly: false },
+  { href: "/hands-on", label: "Hands-on trials", adminOnly: false },
+  { href: "/mobile", label: "Mobile", adminOnly: false },
   { href: "/media", label: "Media", adminOnly: false },
   { href: "/reports", label: "Visitor reports", adminOnly: false },
   { href: "/notifications", label: "Notifications", adminOnly: false },
   { href: "/settings", label: "Settings", adminOnly: false },
+  { href: "/vault", label: "Vault", adminOnly: true },
   { href: "/audit", label: "Audit log", adminOnly: true },
 ];
 

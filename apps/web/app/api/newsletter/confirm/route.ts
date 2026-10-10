@@ -1,4 +1,5 @@
-import { confirmNewsletter } from "@repo/core";
+import { confirmNewsletter, newsletterLocale } from "@repo/core";
+import { localePath } from "@repo/content";
 import { getDb } from "@repo/db";
 import type { NextRequest } from "next/server";
 
@@ -6,5 +7,6 @@ import type { NextRequest } from "next/server";
 export async function POST(request: NextRequest) {
   const form = await request.formData();
   const ok = await confirmNewsletter(getDb(), String(form.get("token") ?? "").slice(0, 100));
-  return Response.redirect(new URL(`/newsletter/confirm?status=${ok ? "confirmed" : "invalid"}`, request.url), 303);
+  const page = localePath(newsletterLocale(form.get("locale")), "/newsletter/confirm");
+  return Response.redirect(new URL(`${page}?status=${ok ? "confirmed" : "invalid"}`, request.url), 303);
 }

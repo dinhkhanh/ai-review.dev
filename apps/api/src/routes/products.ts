@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { ErrorResponseSchema, ProductDetailSchema, ProductListSchema } from "@repo/contracts";
+import { ErrorResponseSchema, LocaleQuerySchema, ProductDetailSchema, ProductListSchema } from "@repo/contracts";
 import { countReviewedProducts, getMediaAssets, getReviewedProductBySlug, listReviewedProducts } from "@repo/core";
 import type { AppEnv } from "../create-app";
 import { cacheHeaders, iso, toImage } from "../mappers";
@@ -13,6 +13,7 @@ const listRoute = createRoute({
     query: z.object({
       limit: z.coerce.number().int().min(1).max(100).default(50),
       offset: z.coerce.number().int().min(0).default(0),
+      locale: LocaleQuerySchema,
     }),
   },
   responses: { 200: { content: { "application/json": { schema: ProductListSchema } }, description: "Products A–Z" } },
@@ -23,7 +24,10 @@ const detailRoute = createRoute({
   path: "/products/{slug}",
   tags: ["products"],
   summary: "Get a reviewed product with verified pricing",
-  request: { params: z.object({ slug: z.string().openapi({ example: "notion" }) }) },
+  request: {
+    params: z.object({ slug: z.string().openapi({ example: "notion" }) }),
+    query: z.object({ locale: LocaleQuerySchema }),
+  },
   responses: {
     200: { content: { "application/json": { schema: ProductDetailSchema } }, description: "The product" },
     404: { content: { "application/json": { schema: ErrorResponseSchema } }, description: "Not found" },
@@ -32,9 +36,12 @@ const detailRoute = createRoute({
 
 export const productsRoutes = new OpenAPIHono<AppEnv>()
   .openapi(listRoute, async (c) => {
-    const { limit, offset } = c.req.valid("query");
+    const { limit, offset, locale } = c.req.valid("query");
     const db = c.get("db");
-    const [rows, total] = await Promise.all([listReviewedProducts(db, { limit, offset }), countReviewedProducts(db)]);
+    const [rows, total] = await Promise.all([
+      listReviewedProducts(db, { limit, offset, locale }),
+      countReviewedProducts(db, { locale }),
+    ]);
     const logos = new Map(
       (
         await getMediaAssets(
@@ -63,8 +70,9 @@ export const productsRoutes = new OpenAPIHono<AppEnv>()
   })
   .openapi(detailRoute, async (c) => {
     const { slug } = c.req.valid("param");
+    const { locale } = c.req.valid("query");
     const db = c.get("db");
-    const p = await getReviewedProductBySlug(db, slug);
+    const p = await getReviewedProductBySlug(db, slug, locale);
     if (!p) return c.json({ error: { code: "not_found", message: "Product not found" } }, 404);
     const [logo] = p.logoAssetId ? await getMediaAssets(db, [p.logoAssetId]) : [];
     const tiers = p.factSheet?.pricing?.tiers.value ?? [];

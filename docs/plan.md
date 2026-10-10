@@ -351,6 +351,70 @@ Deviations and decisions:
 - `apps/mobile` (Expo): browse, search, review reader rendering blocks natively, saved items, price-change push alerts, deep/universal links (FR-API-4).
 - Newsletter + digest (FR-WEB-9), Search Console import for decay detection (FR-MNT-3), A/B offers (FR-AFF-13), hands-on browser agent behind per-vendor opt-in (FR-RES-7), second locale.
 
+### Phase 3 status (2026-10-11)
+
+Built and verified locally: lint, types, tests and builds in all 50 Turborepo tasks, including
+production builds of web, CMS and API, and an `expo export` bundle of the app. One migration
+(`0006_phase3_foundation`) carries the schema. The second locale is **German** (owner decision): English
+stays at unprefixed URLs, German lives under `/de`, formal "Sie".
+
+- **Mobile (FR-API-4):** `apps/mobile` (Expo SDK 57, expo-router). Covers browse, search, saved items
+  and price alerts, with a native reader for every content block. Deep links (`aireview://`) and
+  universal/app links, served from `/.well-known` on the web app. German UI by device language.
+  Anonymous device tokens (`Bearer <deviceId>.<secret>`, only the hash is stored). API endpoints
+  `/v1/devices`, `/v1/me/saved`, `/v1/me/alerts` (API 1.4.0). Refreshes record plan-price changes in
+  `price_changes`. The `price-alert-push` task sends Expo pushes every 15 minutes with a per-device
+  daily cap, and `push-receipts` disables dead tokens.
+- **Second locale:** web pages live under `app/[locale]` behind `proxy.ts`. UI strings come from typed
+  message catalogues (`apps/web/messages`), German being complete or the build fails. Pages carry
+  hreflang/x-default, sitemaps and RSS per locale, and a language switcher that finds the translated
+  article. Affiliate labelling follows German practice ("Anzeige", asterisk + footnote). There are
+  German legal pages and `/impressum`. Read API `?locale=en|de` with `alternates`; search uses the
+  german text-search config for `de`. Locales are public only when listed in `i18n.policy`.
+- **Translation:** "translate" job preset. Only text goes to the model; block structure, CTAs,
+  citations, prices and URLs are copied from the source. German SEO and slug, a German OG image, and
+  translation QA gates (citations, CTAs, links, prices) on the normal scorecard. Re-translation
+  touches only sections whose source changed and keeps editor edits elsewhere. Auto-translate on
+  publish plus a `translation-dispatch` back-fill cron. CMS `/translations` coverage matrix,
+  catalogue (category/product) translations, a panel on each article. Live check: ~$0.16 per
+  24-block slice of a review; a full review costs roughly $0.10–0.40.
+- **Newsletter digest (FR-WEB-9):** weekly issue per locale from new and refreshed articles plus
+  deals. HTML + text email, disclosure (German "Werbehinweis"), RFC 8058 one-click unsubscribe.
+  Resend batch sends with one delivery row per subscriber, so repeats never double-email. Hourly
+  `newsletter-digest` task (auto-send or draft + notification). CMS `/newsletter` for preview,
+  editing, test send and scheduling.
+- **Search Console (FR-MNT-3):** service-account adapter in `@repo/ai`; daily import of
+  page×day and top queries (`search-console-import`, before the refresh scheduler) plus backfill up
+  to 16 months. Decay detection compares two windows (click drop, position loss) and flags articles
+  with a weekly de-duplicated notification. Flagged products' refresh is pulled forward. CMS `/decay`
+  list and a Search Console panel on the article page.
+- **A/B offers (FR-AFF-13):** experiments over 2+ links of one product. Variant clicks carry a
+  `--v<token>` SubID segment, so imported conversions attribute to `conversions.link_id`. Per-variant
+  report: clicks, conversion rate, commission, EPC, traffic share. Two-proportion and Welch tests
+  against the leader, with a minimum-clicks gate. Promote winner (losers paused). The UI is on the
+  product's Affiliate tab and an "A/B tests" tab.
+- **Hands-on trials (FR-RES-7):** AES-256-GCM vault (`VAULT_KEY`, rotation by key version). A
+  browser agent loop over a `BrowserDriver` interface (Playwright in the worker; remote CDP or local
+  Chromium) with secrets passed as placeholders only. Email verification goes through Resend
+  receiving. Hard guardrails: own domain only; stop on payment, CAPTCHA, phone verification or
+  third-party sign-in; step/cost/time caps. Session notes become a first-party source that the fact
+  sheet and writer cite. Runs inside full reviews of opted-in products (on a `medium-1x` machine)
+  or standalone from CMS `/hands-on`; `/vault` is admin-only and write-only. Live check against a
+  local fixture site: $0.095, 14 steps.
+
+Deviations and decisions:
+
+- German URLs keep English segments (`/de/reviews/<german-slug>`); German slugs transliterate
+  umlauts and ß.
+- Products and fact sheets are shared across locales; only articles are per locale. Category names
+  and product taglines live in `translations` jsonb with English fallback. Deal titles, author bios
+  and the CMS AI-disclosure setting stay English (German pages use a fixed catalogue line).
+- The A/B winner is called on EPC, not conversion rate, because variants from different programs pay
+  differently. Links whose program forbids redirects cannot be variants (they bypass `/go`).
+- The hands-on agent uses the existing structured-output LLM wrapper (one action per turn) instead of
+  the tool-use API, so cost tracking and refusal handling stay in one place.
+- Network "new programs" directories are still not crawled (unchanged from Phase 2).
+
 ---
 
 ## 10. Risks and mitigations

@@ -19,9 +19,12 @@ export const NOTIFICATION_EVENTS = {
   "program.reminder": { label: "Affiliate program status reminder", severity: "info", email: true, webhook: false },
   "cost.alert": { label: "Cost above target", severity: "warning", email: true, webhook: true },
   "conversions.imported": { label: "Conversions imported", severity: "info", email: false, webhook: false },
+  "content.decay": { label: "Search traffic decaying", severity: "warning", email: true, webhook: true },
+  "searchConsole.failed": { label: "Search Console import failed", severity: "error", email: true, webhook: false },
   "sourcing.suggestions": { label: "New suggested products", severity: "info", email: false, webhook: true },
   "video.ready": { label: "Video ready", severity: "success", email: false, webhook: true },
   "video.failed": { label: "Video failed", severity: "error", email: true, webhook: true },
+  "newsletter.ready": { label: "Newsletter draft ready to send", severity: "info", email: true, webhook: false },
 } as const satisfies Record<string, { label: string; severity: Severity; email: boolean; webhook: boolean }>;
 export type NotificationEvent = keyof typeof NOTIFICATION_EVENTS;
 

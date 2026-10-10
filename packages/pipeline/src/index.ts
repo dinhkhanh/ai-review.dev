@@ -14,3 +14,5 @@ export * from "./sourcing";
 export * from "./step";
 export { smokeStep } from "./steps/smoke";
 export * from "./video";
+export * from "./translate";
+export * from "./hands-on";

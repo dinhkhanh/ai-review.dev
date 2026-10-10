@@ -3,7 +3,15 @@
 import { useState } from "react";
 
 /** Promo code with a copy button (FR-WEB-8). The code stays selectable text without JS. */
-export function PromoCode({ code }: { code: string }) {
+export function PromoCode({
+  code,
+  copyLabel = "Copy code",
+  copiedLabel = "Copied",
+}: {
+  code: string;
+  copyLabel?: string;
+  copiedLabel?: string;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <span className="inline-flex items-center gap-2">
@@ -22,7 +30,7 @@ export function PromoCode({ code }: { code: string }) {
         }}
         aria-live="polite"
       >
-        {copied ? "Copied" : "Copy code"}
+        {copied ? copiedLabel : copyLabel}
       </button>
     </span>
   );

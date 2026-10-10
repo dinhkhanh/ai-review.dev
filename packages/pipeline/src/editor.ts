@@ -18,8 +18,10 @@ export {
   prepareRerun,
   REVIEW_STEPS,
   stepsForPreset,
+  TRANSLATE_STEPS,
   type DerivativeStep,
   type ReviewStep,
+  type TranslateStep,
 } from "./review-steps";
 export { regenerateSection, sectionKeyOf } from "./section";
 export { recheckBlocks } from "./section-check";

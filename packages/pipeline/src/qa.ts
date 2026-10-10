@@ -25,6 +25,7 @@ import {
   getVersion,
 } from "@repo/core";
 import type { DbOrTx } from "@repo/db";
+import { ENGLISH_ONLY_CHECKS, translationChecks } from "./translate/qa";
 
 type Check = QaScorecard["checks"][number];
 
@@ -287,7 +288,16 @@ export async function computeQaScorecard(
     },
   ];
   // Review-only checks do not apply to comparisons and lists.
-  const applicable = isReview ? checks : checks.filter((c) => !["screenshots", "pricing_citations"].includes(c.key));
+  let applicable = isReview ? checks : checks.filter((c) => !["screenshots", "pricing_citations"].includes(c.key));
+  // Translations: English readability/banned-phrase checks give way to checks against the source version.
+  if (article.translationOfId) {
+    const sourceVersion = article.translatedFromVersionId
+      ? await getVersion(db, article.translatedFromVersionId)
+      : null;
+    applicable = applicable.filter((c) => !ENGLISH_ONLY_CHECKS.includes(c.key));
+    if (sourceVersion)
+      applicable.push(...translationChecks(sourceVersion.blocks, blocks, { locale: article.locale }).checks);
+  }
   const hardGatesPassed = applicable.every((c) => !c.hard || c.passed);
   return { hardGatesPassed, checks: applicable, computedAt: new Date().toISOString() };
 }

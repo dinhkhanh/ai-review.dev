@@ -114,7 +114,7 @@ export const visitorRoutes = new OpenAPIHono<AppEnv>()
       turnstileToken: body.turnstileToken,
     });
     if (!guard.ok) return blocked(c, guard);
-    await subscribeNewsletter(c.get("db"), { email: body.email, source: body.source ?? "api" });
+    await subscribeNewsletter(c.get("db"), { email: body.email, source: body.source ?? "api", locale: body.locale });
     // Same answer whether or not the address was known (no enumeration).
     return c.json({ status: "accepted" as const, message: "Check your inbox to confirm your subscription" }, 202);
   });

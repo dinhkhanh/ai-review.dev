@@ -10,6 +10,7 @@ import {
   type Network,
 } from "@repo/affiliate";
 import {
+  affiliateLinks,
   affiliatePrograms,
   articles,
   conversionImports,
@@ -197,7 +198,8 @@ export interface ImportOptions {
 }
 
 /**
- * Stores conversions with attribution (FR-AFF-11, FR-AFF-12): SubID → article + placement,
+ * Stores conversions with attribution (FR-AFF-11, FR-AFF-12): SubID → article + placement (and the
+ * A/B variant link when the SubID carries a `--v<link>` token, FR-AFF-13),
  * program by explicit id, network + name, or the article's product; upserts on
  * (network, order id) so re-imports update statuses. Rows nobody can attribute are kept and
  * counted as unmatched for manual mapping.
@@ -237,14 +239,31 @@ export async function importConversions(db: DbOrTx, rows: ConversionRow[], opts:
     if (!bySlug.has(a.slug)) bySlug.set(a.slug, a);
   }
 
+  // A/B variant links (FR-AFF-13): the SubID token is a hex prefix of the link id.
+  const hasVariants = rows.some((r) => r.subId && parseSubId(r.subId).variant);
+  const variantLinks = hasVariants
+    ? await db
+        .select({ id: affiliateLinks.id, productId: affiliateLinks.productId, programId: affiliateLinks.programId })
+        .from(affiliateLinks)
+        .where(sql`${affiliateLinks.experimentId} is not null`)
+    : [];
+  const variantLink = (token: string | null, productId: string | null) => {
+    if (!token) return null;
+    const matches = variantLinks.filter(
+      (l) => l.id.replace(/-/g, "").startsWith(token) && (!productId || l.productId === productId),
+    );
+    return matches.length === 1 ? matches[0]! : null;
+  };
+
   let inserted = 0;
   let updated = 0;
   let unmatched = 0;
   const errors = [...(opts.parseErrors ?? [])];
   for (const [i, r] of rows.entries()) {
     try {
-      const parsed = r.subId ? parseSubId(r.subId) : { articleSlug: null, placement: null };
+      const parsed = r.subId ? parseSubId(r.subId) : { articleSlug: null, placement: null, variant: null };
       const article = parsed.articleSlug ? (bySlug.get(parsed.articleSlug) ?? null) : null;
+      const link = variantLink(parsed.variant, article?.productId ?? null);
       const name = r.program?.trim().toLowerCase() ?? "";
       const program =
         (opts.programId ? programs.find((p) => p.id === opts.programId) : undefined) ??
@@ -253,11 +272,12 @@ export async function importConversions(db: DbOrTx, rows: ConversionRow[], opts:
               (p) => p.network === r.network && (p.name.toLowerCase() === name || p.productName.toLowerCase() === name),
             )
           : undefined) ??
+        (link?.programId ? programs.find((p) => p.id === link.programId) : undefined) ??
         (article?.productId
           ? programs.find((p) => p.network === r.network && p.productId === article.productId)
           : undefined) ??
         null;
-      const productId = article?.productId ?? program?.productId ?? null;
+      const productId = article?.productId ?? program?.productId ?? link?.productId ?? null;
       if (!article && !productId) unmatched++;
       const values = {
         network: r.network,
@@ -266,6 +286,7 @@ export async function importConversions(db: DbOrTx, rows: ConversionRow[], opts:
         articleId: article?.id ?? null,
         productId,
         placement: parsed.placement,
+        linkId: link?.id ?? null,
         importId: run!.id,
         externalOrderId: r.orderId,
         amount: r.amount === null ? null : r.amount.toFixed(2),
@@ -292,6 +313,7 @@ export async function importConversions(db: DbOrTx, rows: ConversionRow[], opts:
             articleId: sql`coalesce(${values.articleId}::uuid, ${conversions.articleId})`,
             productId: sql`coalesce(${values.productId}::uuid, ${conversions.productId})`,
             placement: sql`coalesce(${values.placement}, ${conversions.placement})`,
+            linkId: sql`coalesce(${values.linkId}::uuid, ${conversions.linkId})`,
           },
         })
         .returning({ inserted: sql<boolean>`(xmax = 0)` });

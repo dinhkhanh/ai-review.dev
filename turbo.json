@@ -53,7 +53,18 @@
         "YOUTUBE_CLIENT_SECRET",
         "YOUTUBE_REFRESH_TOKEN",
         "FAL_KEY",
-        "PRODUCT_HUNT_TOKEN"
+        "PRODUCT_HUNT_TOKEN",
+        "GSC_CLIENT_EMAIL",
+        "GSC_PRIVATE_KEY",
+        "GSC_SITE_URL",
+        "VAULT_KEY",
+        "HANDS_ON_INBOX_DOMAIN",
+        "BROWSER_WS_ENDPOINT",
+        "EXPO_ACCESS_TOKEN",
+        "APPLE_TEAM_ID",
+        "IOS_BUNDLE_ID",
+        "ANDROID_PACKAGE",
+        "ANDROID_CERT_SHA256"
       ]
     },
     "lint": {

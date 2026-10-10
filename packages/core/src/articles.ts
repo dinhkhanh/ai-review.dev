@@ -353,12 +353,17 @@ export async function dueScheduledArticles(db: DbOrTx, now = new Date()) {
     .where(and(eq(articles.status, "scheduled"), sql`${articles.scheduledFor} <= ${now.toISOString()}::timestamptz`));
 }
 
-export async function listArticles(db: DbOrTx, opts: { status?: ArticleStatus[]; limit?: number } = {}) {
+export async function listArticles(
+  db: DbOrTx,
+  opts: { status?: ArticleStatus[]; locale?: string | null; limit?: number } = {},
+) {
   return db
     .select({
       id: articles.id,
       type: articles.type,
       slug: articles.slug,
+      locale: articles.locale,
+      translationOfId: articles.translationOfId,
       title: articles.title,
       status: articles.status,
       productId: articles.productId,
@@ -371,7 +376,12 @@ export async function listArticles(db: DbOrTx, opts: { status?: ArticleStatus[];
     .from(articles)
     .leftJoin(products, eq(products.id, articles.productId))
     .leftJoin(articleVersions, eq(articleVersions.id, articles.currentVersionId))
-    .where(opts.status?.length ? inArray(articles.status, opts.status) : undefined)
+    .where(
+      and(
+        opts.status?.length ? inArray(articles.status, opts.status) : undefined,
+        opts.locale ? eq(articles.locale, opts.locale) : undefined,
+      ),
+    )
     .orderBy(desc(articles.updatedAt))
     .limit(Math.min(opts.limit ?? 100, 500));
 }

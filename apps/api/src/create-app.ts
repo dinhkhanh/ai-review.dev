@@ -9,6 +9,7 @@ import { categoriesRoutes } from "./routes/categories";
 import { dealsRoutes } from "./routes/deals";
 import { guidesRoutes } from "./routes/guides";
 import { healthRoutes } from "./routes/health";
+import { mobileRoutes } from "./routes/mobile";
 import { productsRoutes } from "./routes/products";
 import { reviewsRoutes } from "./routes/reviews";
 import { searchRoutes } from "./routes/search";
@@ -40,7 +41,7 @@ export function createApp(options: CreateAppOptions) {
     "/v1/*",
     cors({
       origin: options.allowedOrigins ?? [process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"],
-      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       maxAge: 600,
     }),
   );
@@ -58,6 +59,7 @@ export function createApp(options: CreateAppOptions) {
   app.route("/v1", searchRoutes);
   app.route("/v1", dealsRoutes);
   app.route("/v1", visitorRoutes);
+  app.route("/v1", mobileRoutes);
 
   app.doc31("/openapi.json", {
     openapi: "3.1.0",

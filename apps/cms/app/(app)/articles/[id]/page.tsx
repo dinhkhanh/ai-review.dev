@@ -1,4 +1,4 @@
-import { articlePath, articleText, blockText } from "@repo/content";
+import { articleText, blockText, localizedArticlePath } from "@repo/content";
 import {
   ARTICLE_TRANSITIONS,
   getArticle,
@@ -31,9 +31,11 @@ import {
   saveSeoAction,
   transitionAction,
 } from "../actions";
+import { ArticleSearchPanel } from "../../decay/search-panel";
 import { BlockEditor } from "./block-editor";
 import { MediaPanel } from "./media-panel";
 import { SocialPanel } from "./social-panel";
+import { TranslationsPanel } from "./translations-panel";
 import { VideoPanel } from "./video-panel";
 import { VoteCounts } from "./vote-counts";
 
@@ -82,6 +84,7 @@ export default async function ArticlePage({
   for (const c of openComments) if (c.blockId) commentCounts[c.blockId] = (commentCounts[c.blockId] ?? 0) + 1;
   const sections = SECTION_KEYS.filter((k) => version?.blocks.some((b) => sectionKeyOf(b.id) === k));
   const compareVersion = compare ? await getVersion(db, compare) : null;
+  const isTranslation = !!article.translationOfId;
 
   return (
     <div className="space-y-5">
@@ -90,6 +93,7 @@ export default async function ArticlePage({
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
             <StatusBadge status={article.status} />
+            {article.locale !== "en" ? <span className="font-mono uppercase">{article.locale}</span> : null}
             <span>v{versions[0]?.version ?? 0}</span>
             {version?.overallScore ? <span>· score {version.overallScore.toFixed(1)}</span> : null}
             {qa ? <span>· gates {qa.hardGatesPassed ? "✓ pass" : "✗ fail"}</span> : null}
@@ -97,12 +101,12 @@ export default async function ArticlePage({
               <>
                 · live{" "}
                 <a
-                  href={`${site}${articlePath(article.type, article.slug)}`}
+                  href={`${site}${localizedArticlePath(article.type, article.slug, article.locale)}`}
                   target="_blank"
                   rel="noopener"
                   className="underline"
                 >
-                  {articlePath(article.type, article.slug)}
+                  {localizedArticlePath(article.type, article.slug, article.locale)}
                 </a>
                 {article.publishedVersionId !== article.currentVersionId ? (
                   <span className="text-warning">(unpublished edits)</span>
@@ -180,8 +184,14 @@ export default async function ArticlePage({
           />
           <aside className="space-y-6">
             <VoteCounts articleId={id} />
-            <SocialPanel articleId={id} social={article.social} />
             <section className="space-y-2">
+              <h2 className="font-semibold">Search Console</h2>
+              <ArticleSearchPanel articleId={id} />
+            </section>
+            <TranslationsPanel articleId={id} />
+            {/* Translations: social posts and section regeneration produce English, so they are off. */}
+            {isTranslation ? null : <SocialPanel articleId={id} social={article.social} />}
+            <section className={isTranslation ? "hidden" : "space-y-2"}>
               <h2 className="font-semibold">Regenerate a section</h2>
               <ActionForm action={regenerateSectionAction} className="space-y-2">
                 <input type="hidden" name="articleId" value={id} />

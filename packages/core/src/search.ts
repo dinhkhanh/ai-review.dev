@@ -88,6 +88,13 @@ export interface SearchOptions {
   type?: SearchType | null;
   limit?: number;
   offset?: number;
+  /** Content locale searched (phase 3); defaults to English. */
+  locale?: string | null;
+}
+
+/** Text-search configuration per locale; must match the `articles.search_tsv` generated column. */
+export function searchConfigFor(locale: string | null | undefined): "german" | "english" {
+  return locale === "de" ? "german" : "english";
 }
 
 /** Escapes LIKE wildcards in user input. */
@@ -100,14 +107,17 @@ export type SearchHit = Awaited<ReturnType<typeof searchSite>>[number];
 export async function searchSite(db: DbOrTx, opts: SearchOptions) {
   const q = opts.q.trim().slice(0, 200);
   if (!q) return [];
-  const query = sql`websearch_to_tsquery('english', ${q})`;
+  const locale = opts.locale || "en";
+  const query = sql`websearch_to_tsquery(${searchConfigFor(locale)}::regconfig, ${q})`;
   const pattern = likePattern(q);
   // Candidate ids: the GIN-indexed full-text branch, unioned with product-name hits.
   const candidates = sql`(
-    select ${articles.id} from ${articles} where ${articles.searchTsv} @@ ${query}
+    select ${articles.id} from ${articles} where ${articles.searchTsv} @@ ${query} and ${articles.locale} = ${locale}
     union
     select ${articles.id} from ${articles} join ${products} on ${products.id} = ${articles.productId}
-    where ${products.name} ilike ${pattern} or ${products.tagline} ilike ${pattern}
+    where ${articles.locale} = ${locale}
+      and (${products.name} ilike ${pattern} or ${products.tagline} ilike ${pattern}
+        or ${products.translations} -> ${locale} ->> 'tagline' ilike ${pattern})
   )`;
   const nameHit = sql`(${products.name} ilike ${pattern})`;
   const rank = sql<number>`(ts_rank(${articles.searchTsv}, ${query}) + case when ${nameHit} then 1 else 0 end)::real`;
@@ -126,10 +136,14 @@ export async function searchSite(db: DbOrTx, opts: SearchOptions) {
       productId: products.id,
       productName: products.name,
       productSlug: products.slug,
-      productTagline: products.tagline,
+      productTagline: sql<
+        string | null
+      >`coalesce(nullif(${products.translations} -> ${locale} ->> 'tagline', ''), ${products.tagline})`,
       logoAssetId: products.logoAssetId,
       categorySlug: categories.slug,
-      categoryName: categories.name,
+      categoryName: sql<
+        string | null
+      >`coalesce(nullif(${categories.translations} -> ${locale} ->> 'name', ''), ${categories.name})`,
       rank,
     })
     .from(articles)
@@ -139,6 +153,7 @@ export async function searchSite(db: DbOrTx, opts: SearchOptions) {
     .where(
       and(
         live(),
+        eq(articles.locale, locale),
         sql`${articles.id} in ${candidates}`,
         opts.type ? eq(articles.type, opts.type) : undefined,
         opts.categorySlug ? eq(categories.slug, opts.categorySlug) : undefined,

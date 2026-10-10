@@ -1,29 +1,34 @@
 import type { Block } from "@repo/content";
 import { scoreBand } from "../tokens";
 import { InlineText, SPONSORED_REL, type InlineContext } from "./inline";
-import { headingId, type RenderModel } from "./model";
+import {
+  DEFAULT_RENDER_LABELS,
+  headingId,
+  renderIntlLocale,
+  renderLabels,
+  type RenderLabels,
+  type RenderModel,
+} from "./model";
 
-const PERIOD: Record<string, string> = {
-  month: "/month",
-  year: "/year",
-  one_time: " one-time",
-  usage: " usage-based",
-  custom: "",
-};
-
-export function formatTierPrice(price: number | null, currency: string, period: string): string {
-  if (price === null) return "Custom";
-  if (price === 0) return "Free";
-  const amount = new Intl.NumberFormat("en-US", {
+export function formatTierPrice(
+  price: number | null,
+  currency: string,
+  period: string,
+  opts: { intlLocale?: string; labels?: Pick<RenderLabels, "priceCustom" | "priceFree" | "period"> } = {},
+): string {
+  const labels = opts.labels ?? DEFAULT_RENDER_LABELS;
+  if (price === null) return labels.priceCustom;
+  if (price === 0) return labels.priceFree;
+  const amount = new Intl.NumberFormat(opts.intlLocale ?? "en-US", {
     style: "currency",
     currency: currency || "USD",
     maximumFractionDigits: price % 1 === 0 ? 0 : 2,
   }).format(price);
-  return `${amount}${PERIOD[period] ?? ""}`;
+  return `${amount}${labels.period[period as keyof RenderLabels["period"]] ?? ""}`;
 }
 
-function formatDate(value: string | Date) {
-  return new Date(value).toLocaleDateString("en-US", {
+function formatDate(value: string | Date, intlLocale = "en-US") {
+  return new Date(value).toLocaleDateString(intlLocale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -31,14 +36,23 @@ function formatDate(value: string | Date) {
   });
 }
 
-export function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" | "lg" }) {
+export function ScoreBadge({
+  score,
+  size = "md",
+  label,
+}: {
+  score: number;
+  size?: "sm" | "md" | "lg";
+  /** Accessible label builder (localised); defaults to English. */
+  label?: RenderLabels["score"];
+}) {
   const band = scoreBand(score);
   const dims = size === "lg" ? "h-20 w-20 text-3xl" : size === "sm" ? "h-9 w-9 text-sm" : "h-14 w-14 text-xl";
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center rounded-full border-4 font-bold tabular-nums ${dims}`}
       style={{ borderColor: band.color }}
-      aria-label={`Score ${score.toFixed(1)} out of 10 (${band.label})`}
+      aria-label={(label ?? DEFAULT_RENDER_LABELS.score)(score.toFixed(1), band.label)}
     >
       {score.toFixed(1)}
     </span>
@@ -50,14 +64,21 @@ export function CtaButton({
   label,
   note,
   direct,
+  marker,
+  adLabel,
 }: {
   href: string;
   label: string;
   note?: string;
   direct?: boolean;
+  /** Affiliate marker appended to the label (German "*"). */
+  marker?: string;
+  /** Advertising label above the button (German "Anzeige"). */
+  adLabel?: string | null;
 }) {
   return (
     <div className="my-6 flex flex-col items-start gap-1.5">
+      {adLabel ? <span className="text-[0.7rem] uppercase tracking-wide text-muted">{adLabel}</span> : null}
       <a
         href={href}
         rel={SPONSORED_REL}
@@ -65,7 +86,8 @@ export function CtaButton({
         className="inline-flex h-12 items-center justify-center rounded-md bg-brand px-6 text-base font-semibold text-brand-fg hover:opacity-90"
         data-direct={direct ? "true" : undefined}
       >
-        {label} <span aria-hidden="true">&nbsp;→</span>
+        {label}
+        {marker || null} <span aria-hidden="true">&nbsp;→</span>
       </a>
       {note ? <span className="text-xs text-muted">{note}</span> : null}
     </div>
@@ -73,6 +95,7 @@ export function CtaButton({
 }
 
 export function BlockView({ block, model, ctx }: { block: Block; model: RenderModel; ctx: InlineContext }) {
+  const t = renderLabels(model);
   switch (block.type) {
     case "heading": {
       const Tag = block.level === 2 ? "h2" : "h3";
@@ -107,18 +130,18 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
     }
     case "verdict":
       return (
-        <section aria-label="Verdict" className="mt-6 rounded-lg border border-border bg-surface p-5">
+        <section aria-label={t.verdict} className="mt-6 rounded-lg border border-border bg-surface p-5">
           <div className="flex items-start gap-4">
-            <ScoreBadge score={block.score} size="lg" />
+            <ScoreBadge score={block.score} size="lg" label={t.score} />
             <div>
-              <p className="text-sm font-medium uppercase tracking-wide text-muted">Our verdict</p>
+              <p className="text-sm font-medium uppercase tracking-wide text-muted">{t.ourVerdict}</p>
               <p className="mt-1 text-lg leading-7">{block.summary}</p>
             </div>
           </div>
           {block.bestFor.length || block.notFor.length ? (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-sm font-semibold text-success">Best for</p>
+                <p className="text-sm font-semibold text-success">{t.bestFor}</p>
                 <ul className="mt-1.5 space-y-1 text-sm">
                   {block.bestFor.map((x) => (
                     <li key={x}>✓ {x}</li>
@@ -126,7 +149,7 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
                 </ul>
               </div>
               <div>
-                <p className="text-sm font-semibold text-danger">Not for</p>
+                <p className="text-sm font-semibold text-danger">{t.notFor}</p>
                 <ul className="mt-1.5 space-y-1 text-sm">
                   {block.notFor.map((x) => (
                     <li key={x}>✗ {x}</li>
@@ -145,7 +168,7 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
               <div className="flex items-baseline justify-between gap-4">
                 <span className="font-medium">{d.label}</span>
                 <span className="tabular-nums text-sm text-muted">
-                  <strong className="text-base text-text">{d.score.toFixed(1)}</strong>/10 · weight{" "}
+                  <strong className="text-base text-text">{d.score.toFixed(1)}</strong>/10 · {t.weight}{" "}
                   {Math.round(d.weight * 100)}%
                 </span>
               </div>
@@ -173,12 +196,15 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
       return (
         <div className="mt-6">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {block.tiers.map((t) => (
-              <div key={t.name} className="rounded-lg border border-border p-4">
-                <p className="font-semibold">{t.name}</p>
+            {block.tiers.map((tier) => (
+              <div key={tier.name} className="rounded-lg border border-border p-4">
+                <p className="font-semibold">{tier.name}</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums">
-                  {formatTierPrice(t.price, t.currency, t.period)}
-                  {t.citations.slice(0, 1).map((c) => (
+                  {formatTierPrice(tier.price, tier.currency, tier.period, {
+                    intlLocale: renderIntlLocale(model),
+                    labels: t,
+                  })}
+                  {tier.citations.slice(0, 1).map((c) => (
                     <sup key={c.sourceId} className="ml-0.5 text-xs font-normal">
                       <a href={`#source-${ctx.citationNumber(c.sourceId)}`} className="text-brand">
                         [{ctx.citationNumber(c.sourceId)}]
@@ -186,9 +212,9 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
                     </sup>
                   ))}
                 </p>
-                {t.highlights.length ? (
+                {tier.highlights.length ? (
                   <ul className="mt-3 space-y-1 text-sm text-muted">
-                    {t.highlights.map((h) => (
+                    {tier.highlights.map((h) => (
                       <li key={h}>• {h}</li>
                     ))}
                   </ul>
@@ -197,10 +223,10 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
             ))}
           </div>
           <p className="mt-2 text-xs text-muted">
-            Prices verified on {formatDate(block.verifiedAt)}.{" "}
+            {t.pricesVerifiedOn(formatDate(block.verifiedAt, renderIntlLocale(model)))}{" "}
             {model.reportHref ? (
               <a href={model.reportHref} className="underline">
-                Report a change
+                {t.reportChange}
               </a>
             ) : null}
           </p>
@@ -210,7 +236,7 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
       return (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-lg border border-border p-4">
-            <p className="font-semibold text-success">Pros</p>
+            <p className="font-semibold text-success">{t.pros}</p>
             <ul className="mt-2 space-y-1.5 text-sm">
               {block.pros.map((p) => (
                 <li key={p} className="flex gap-2">
@@ -223,7 +249,7 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
             </ul>
           </div>
           <div className="rounded-lg border border-border p-4">
-            <p className="font-semibold text-danger">Cons</p>
+            <p className="font-semibold text-danger">{t.cons}</p>
             <ul className="mt-2 space-y-1.5 text-sm">
               {block.cons.map((c) => (
                 <li key={c} className="flex gap-2">
@@ -244,7 +270,7 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
             <thead className="bg-surface text-left">
               <tr>
                 <th scope="col" className="p-3 font-medium">
-                  <span className="sr-only">Feature</span>
+                  <span className="sr-only">{t.feature}</span>
                 </th>
                 {block.productIds.map((id) => {
                   const p = model.products[id];
@@ -314,7 +340,7 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
           >
             <img src={v.thumbnailUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
             <span className="absolute inset-0 flex items-center justify-center">
-              <span className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white">▶ Watch</span>
+              <span className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white">▶ {t.watch}</span>
             </span>
           </a>
           <figcaption className="mt-2 text-sm text-muted">{v.title}</figcaption>
@@ -347,6 +373,8 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
           label={block.label}
           note={block.note}
           direct={!!direct}
+          marker={t.affiliateMarker}
+          adLabel={t.adLabel}
         />
       );
     }

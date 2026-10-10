@@ -15,10 +15,21 @@ const VIEWS: Record<string, { label: string; statuses: ArticleStatus[] }> = {
   all: { label: "All", statuses: [] },
 };
 
-export default async function ArticlesPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const { view = "review" } = await searchParams;
+const LOCALES: Record<string, string> = { all: "All languages", en: "English", de: "German" };
+
+export default async function ArticlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; locale?: string }>;
+}) {
+  const { view = "review", locale = "all" } = await searchParams;
   const current = VIEWS[view] ?? VIEWS.review!;
-  const rows = await listArticles(getDb(), { status: current.statuses, limit: 200 });
+  const rows = await listArticles(getDb(), {
+    status: current.statuses,
+    locale: locale in LOCALES && locale !== "all" ? locale : null,
+    limit: 200,
+  });
+  const href = (v: string, l: string) => `/articles?view=${v}${l === "all" ? "" : `&locale=${l}`}`;
   return (
     <div className="space-y-6">
       <PageHeader
@@ -27,15 +38,28 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
       />
       <Tabs
         active={view}
-        tabs={Object.entries(VIEWS).map(([key, v]) => ({ key, label: v.label, href: `/articles?view=${key}` }))}
+        tabs={Object.entries(VIEWS).map(([key, v]) => ({ key, label: v.label, href: href(key, locale) }))}
       />
+      <nav className="flex gap-3 text-sm" aria-label="Language">
+        {Object.entries(LOCALES).map(([key, label]) => (
+          <Link
+            key={key}
+            href={href(view, key)}
+            aria-current={key === locale ? "page" : undefined}
+            className={key === locale ? "font-medium" : "text-muted hover:underline"}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
       {rows.length === 0 ? (
         <Empty>Nothing here.</Empty>
       ) : (
-        <Table head={["Title", "Type", "Product", "Status", "Score", "Gates", "Updated", ""]}>
+        <Table head={["Title", "Lang", "Type", "Product", "Status", "Score", "Gates", "Updated", ""]}>
           {rows.map((a) => (
             <tr key={a.id} className="border-t border-border">
               <td className="p-3 font-medium">{a.title}</td>
+              <td className="p-3 font-mono text-xs uppercase text-muted">{a.locale}</td>
               <td className="p-3 text-muted">{ARTICLE_TYPE_LABEL[a.type]}</td>
               <td className="p-3">{a.productName ?? "—"}</td>
               <td className="p-3">

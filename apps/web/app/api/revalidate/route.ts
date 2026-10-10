@@ -2,10 +2,13 @@ import { timingSafeEqual } from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import { internalPath } from "../../../lib/locale-path";
 
 const bodySchema = z.object({
   paths: z.array(z.string().startsWith("/").max(300)).max(50).default([]),
   tags: z.array(z.string().min(1).max(256)).max(50).default([]),
+  /** Revalidate every page (e.g. after `i18n.policy` changes which locales are public). */
+  all: z.boolean().default(false),
 });
 
 function authorized(request: NextRequest) {
@@ -26,7 +29,9 @@ export async function POST(request: NextRequest) {
   if (!authorized(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return Response.json({ error: "invalid body" }, { status: 400 });
-  for (const path of parsed.data.paths) revalidatePath(path);
+  // Callers send public paths (`/reviews/x`, `/de/reviews/x`); pages live under app/[locale].
+  for (const path of parsed.data.paths) revalidatePath(internalPath(path));
+  if (parsed.data.all) revalidatePath("/[locale]", "layout");
   for (const tag of parsed.data.tags) revalidateTag(tag, { expire: 0 });
   return Response.json({ revalidated: true, paths: parsed.data.paths, tags: parsed.data.tags, now: Date.now() });
 }

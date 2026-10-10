@@ -1,5 +1,7 @@
 import type { ArticleRenderData } from "@repo/core";
 import Link from "next/link";
+import { messagesFor } from "../lib/messages";
+import { reviewPath } from "../lib/render";
 
 /**
  * Dead product handling (FR-MNT-4): when a reviewed product is discontinued, the page keeps its
@@ -8,20 +10,20 @@ import Link from "next/link";
 export function DiscontinuedBanner({ data }: { data: ArticleRenderData }) {
   if (data.product?.status !== "discontinued") return null;
   const alternatives = data.competitors.filter((c) => c.reviewSlug).slice(0, 4);
+  const t = messagesFor(data.article.locale).discontinued;
   return (
     <div role="note" className="mt-6 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
-      <p className="font-semibold">{data.product.name} is no longer available.</p>
+      <p className="font-semibold">{t.gone(data.product.name)}</p>
       <p className="mt-1">
-        {data.product.statusNote ?? "The product appears to have been discontinued."} This review is kept for reference;
-        prices and features may no longer apply.
+        {data.product.statusNote ?? t.fallbackNote} {t.kept}
       </p>
       {alternatives.length ? (
         <p className="mt-2">
-          Consider instead:{" "}
+          {t.consider}{" "}
           {alternatives.map((c, i) => (
             <span key={c.productId}>
               {i > 0 ? ", " : ""}
-              <Link href={`/reviews/${c.reviewSlug}`} className="font-medium underline">
+              <Link href={reviewPath(c.reviewSlug!, data.article.locale)} className="font-medium underline">
                 {c.name}
               </Link>
             </span>

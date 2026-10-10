@@ -1,0 +1,10 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "bundle-check": {
+      "cache": false,
+      "env": ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_SITE_URL", "IOS_BUNDLE_ID", "ANDROID_PACKAGE", "EAS_PROJECT_ID"]
+    }
+  }
+}

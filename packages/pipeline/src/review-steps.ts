@@ -13,6 +13,7 @@ export const REVIEW_STEPS = [
   "crawl_official",
   "collect_third_party",
   "affiliate_discovery",
+  "hands_on",
   "chunk_embed",
   "extract_facts",
   "fact_sheet",
@@ -46,8 +47,23 @@ export type DerivativeStep = (typeof DERIVATIVE_STEPS)[number];
 
 export const DERIVATIVE_PRESETS = ["comparison", "alternatives", "best_of"] as const;
 
+/** Translate jobs (phase 3 second locale): translate a published article, then the shared tail. */
+export const TRANSLATE_STEPS = [
+  "translate",
+  "translate_catalog",
+  "graphics",
+  "qa_gates",
+  "publish",
+] as const satisfies readonly StepName[];
+export type TranslateStep = (typeof TRANSLATE_STEPS)[number];
+
+/** Standalone hands-on trial (FR-RES-7); its notes feed the next review or refresh. */
+export const HANDS_ON_STEPS = ["hands_on"] as const satisfies readonly StepName[];
+
 /** Steps of a job in order, by preset. */
 export function stepsForPreset(preset: string): readonly string[] {
+  if (preset === "translate") return TRANSLATE_STEPS;
+  if (preset === "hands_on") return HANDS_ON_STEPS;
   return (DERIVATIVE_PRESETS as readonly string[]).includes(preset) ? DERIVATIVE_STEPS : REVIEW_STEPS;
 }
 
@@ -58,7 +74,7 @@ export function stepsForPreset(preset: string): readonly string[] {
 export async function prepareRerun(
   db: DbOrTx,
   jobId: string,
-  step: ReviewStep | DerivativeStep,
+  step: ReviewStep | DerivativeStep | TranslateStep,
   only = false,
   preset = "quick_review",
 ) {

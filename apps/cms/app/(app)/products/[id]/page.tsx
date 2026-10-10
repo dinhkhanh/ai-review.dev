@@ -6,6 +6,7 @@ import {
   latestFactSheet,
   listCategories,
   listCompetitors,
+  listExperiments,
   listFactSheetVersions,
   listLinks,
   listMedia,
@@ -34,6 +35,7 @@ import {
   updateProductAction,
 } from "../actions";
 import { LinkForm, ProgramForm } from "./affiliate-forms";
+import { ExperimentsSection } from "./experiments";
 import { LinkHealth } from "../../affiliate/link-health";
 
 export const metadata = { title: "Product" };
@@ -61,7 +63,7 @@ export default async function ProductPage({
   const db = getDb();
   const product = await getProduct(db, id);
   if (!product) notFound();
-  const [categories, sheet, versions, sources, media, programs, links, goSlugs, competitors, article] =
+  const [categories, sheet, versions, sources, media, programs, links, goSlugs, competitors, article, running] =
     await Promise.all([
       listCategories(db),
       latestFactSheet(db, id),
@@ -73,7 +75,9 @@ export default async function ProductPage({
       goSlugsForProduct(db, id),
       listCompetitors(db, id),
       findArticleForProduct(db, id),
+      listExperiments(db, { productId: id, status: "running" }),
     ]);
+  const runningTests = new Map(running.map(({ experiment }) => [experiment.id, experiment.name]));
   const refs = sourceRefs(sources);
   const go = goSlugs[0];
   const table = go ? await loadGoLinkTable(db, go.slug) : null;
@@ -398,6 +402,8 @@ export default async function ProductPage({
             </details>
           </section>
 
+          <ExperimentsSection productId={id} links={links} />
+
           <section className="space-y-3">
             <h2 className="font-semibold">Links</h2>
             <p className="text-sm text-muted">
@@ -409,13 +415,19 @@ export default async function ProductPage({
                 <div className="mb-3 flex items-center gap-3 text-sm">
                   <StatusBadge status={l.status} />
                   <span className="break-all font-mono text-xs">{l.destinationUrl}</span>
-                  <form action={deleteLinkAction} className="ml-auto">
-                    <input type="hidden" name="productId" value={id} />
-                    <input type="hidden" name="linkId" value={l.id} />
-                    <Button type="submit" size="sm" variant="ghost">
-                      Delete
-                    </Button>
-                  </form>
+                  {l.experimentId && runningTests.has(l.experimentId) ? (
+                    <a href="#experiments" className="ml-auto text-xs text-brand hover:underline">
+                      A/B variant: {runningTests.get(l.experimentId)}
+                    </a>
+                  ) : (
+                    <form action={deleteLinkAction} className="ml-auto">
+                      <input type="hidden" name="productId" value={id} />
+                      <input type="hidden" name="linkId" value={l.id} />
+                      <Button type="submit" size="sm" variant="ghost">
+                        Delete
+                      </Button>
+                    </form>
+                  )}
                 </div>
                 <LinkHealth link={l} productId={id} />
                 <LinkForm productId={id} programs={programRows} link={l} />

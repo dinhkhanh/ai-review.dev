@@ -85,6 +85,27 @@ export async function dueRefreshProducts(db: DbOrTx, now = new Date(), limit = 5
     .limit(Math.max(0, limit));
 }
 
+/**
+ * Content decay (FR-MNT-3): makes the products due now unless already due sooner. Skips products
+ * that are discontinued or have a refresh queued/running. Returns how many were moved.
+ */
+export async function pullRefreshForward(db: DbOrTx, productIds: string[], now = new Date()) {
+  if (!productIds.length) return 0;
+  const rows = await db
+    .update(products)
+    .set({ nextRefreshAt: now })
+    .where(
+      and(
+        inArray(products.id, productIds),
+        isNull(products.discontinuedAt),
+        sql`(${products.nextRefreshAt} is null or ${products.nextRefreshAt} > ${now.toISOString()}::timestamptz)`,
+        sql`not exists (select 1 from ${reviewJobs} j where j.product_id = ${products.id} and j.status in ('queued', 'running', 'awaiting_approval'))`,
+      ),
+    )
+    .returning({ id: products.id });
+  return rows.length;
+}
+
 /** Pushes the next refresh out (used as a lease when a refresh job is created, so it is not re-picked). */
 export async function deferRefresh(db: DbOrTx, productId: string, days: number, now = new Date()) {
   await db

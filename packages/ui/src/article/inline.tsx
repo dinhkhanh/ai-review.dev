@@ -8,6 +8,10 @@ export interface InlineContext {
   goHref: (slug: string, placement: string) => string;
   directLinks?: Record<string, string>;
   citationNumber: (sourceId: string) => number;
+  /** Accessible name for citation links; defaults to "Source n". */
+  sourceLabel?: (n: number) => string;
+  /** Appended to monetised link text (e.g. "*" on German pages). */
+  affiliateMarker?: string;
 }
 
 export function InlineText({ inlines, ctx }: { inlines: Inline[]; ctx: InlineContext }) {
@@ -19,7 +23,11 @@ export function InlineText({ inlines, ctx }: { inlines: Inline[]; ctx: InlineCon
           const n = ctx.citationNumber(cite.citation.sourceId);
           return (
             <sup key={i} className="ml-0.5 text-[0.7em]">
-              <a href={`#source-${n}`} className="text-brand no-underline hover:underline" aria-label={`Source ${n}`}>
+              <a
+                href={`#source-${n}`}
+                className="text-brand no-underline hover:underline"
+                aria-label={ctx.sourceLabel?.(n) ?? `Source ${n}`}
+              >
                 [{n}]
               </a>
             </sup>
@@ -46,6 +54,7 @@ export function InlineText({ inlines, ctx }: { inlines: Inline[]; ctx: InlineCon
               target="_blank"
             >
               {node}
+              {ctx.affiliateMarker || null}
             </a>
           );
         }

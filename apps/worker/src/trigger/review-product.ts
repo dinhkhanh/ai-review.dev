@@ -7,13 +7,15 @@ import {
   notifyJobFailed,
   REVIEW_STEPS,
   runReviewJob,
+  TRANSLATE_STEPS,
   type ReviewStep,
 } from "@repo/pipeline";
 import { AbortTaskRunError, logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
+import { createPlaywrightDriver } from "../browser/playwright-driver";
 
-/** Steps of review and derivative jobs (re-run targets). */
-const ALL_STEPS = [...new Set([...REVIEW_STEPS, ...DERIVATIVE_STEPS])] as [string, ...string[]];
+/** Steps of review, derivative and translate jobs (re-run targets). */
+const ALL_STEPS = [...new Set([...REVIEW_STEPS, ...DERIVATIVE_STEPS, ...TRANSLATE_STEPS])] as [string, ...string[]];
 
 /**
  * Runs one review job (docs/plan.md §4 "Pipeline run"). Triggered by the CMS with the job id.
@@ -31,7 +33,9 @@ export const reviewProduct = schemaTask({
   run: async (payload, { ctx }) => {
     const db = getDb();
     try {
-      const result = await runReviewJob(createStepServices(db), payload.jobId, {
+      // The browser is used only by the hands_on step of opted-in products (FR-RES-7).
+      const services = { ...createStepServices(db), makeBrowser: () => createPlaywrightDriver() };
+      const result = await runReviewJob(services, payload.jobId, {
         // Only the first attempt honours re-run flags; retries resume.
         ...(ctx.attempt.number === 1
           ? {

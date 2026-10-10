@@ -6,7 +6,7 @@ import {
   resolveGoLink,
   sanitizeToken,
 } from "@repo/affiliate";
-import { getArticleIdBySlug, recordClick } from "@repo/core";
+import { articleIdForClick, localeFromPath, recordClick } from "@repo/core";
 import { getDb } from "@repo/db";
 import { after, type NextRequest } from "next/server";
 import { getGoLinkTable, isClickBurst } from "../../../lib/golinks";
@@ -24,7 +24,8 @@ function notFoundPage(slug: string) {
 
 /**
  * Go-link redirect (FR-AFF-6, FR-AFF-7, NFR-2): resolve the best affiliate link for the visitor's
- * country with a SubID, 302 immediately, and log the click after the response (cookieless).
+ * country with a SubID, 302 immediately, and log the click after the response (cookieless). A/B
+ * variant clicks record their experiment (FR-AFF-13); the referring page's prefix gives the locale.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug: raw } = await params;
@@ -57,10 +58,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       } catch {
         path = null;
       }
+      const locale = localeFromPath(path);
       await recordClick(db, {
         goSlug: table.slug,
         linkId: resolution.linkId,
-        articleId: articleSlug ? await getArticleIdBySlug(db, articleSlug) : null,
+        experimentId: resolution.experimentId,
+        locale,
+        articleId: articleSlug ? await articleIdForClick(db, articleSlug, locale) : null,
         placement,
         path,
         country,

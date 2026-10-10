@@ -1,4 +1,5 @@
 import { additionalFiles, additionalPackages, aptGet, syncEnvVars } from "@trigger.dev/build/extensions/core";
+import { playwright } from "@trigger.dev/build/extensions/playwright";
 import { defineConfig } from "@trigger.dev/sdk";
 import { readFileSync } from "node:fs";
 
@@ -54,6 +55,8 @@ export default defineConfig({
       "remotion",
       "@remotion/renderer",
       "@remotion/bundler",
+      // Hands-on trials (FR-RES-7): driver + browser binaries come from the image, not the bundle.
+      "playwright-core",
     ],
     extensions: [
       // @repo/graphics reads the font files via createRequire().resolve, which esbuild can't see,
@@ -65,6 +68,11 @@ export default defineConfig({
       // The Remotion bundle is prebuilt by `pnpm --filter @repo/video bundle` (run by `deploy`)
       // and lands at packages/video/build in the image, where @repo/video/render looks for it.
       additionalFiles({ files: ["../../packages/video/build/**"] }),
+      // Hands-on trials (FR-RES-7): Chromium headless shell + its Debian libraries, pinned to the
+      // playwright-core version in package.json. playwright-core itself is installed explicitly
+      // because it is imported dynamically.
+      playwright({ browsers: ["chromium"], headless: true, version: "1.64.0" }),
+      additionalPackages({ packages: ["playwright-core@1.64.0"] }),
       // Shared libraries Chrome Headless Shell needs on Debian (downloaded on first render).
       aptGet({
         packages: [

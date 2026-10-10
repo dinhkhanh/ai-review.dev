@@ -35,6 +35,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "../../../lib/auth";
 import { revalidateArticle } from "../../../lib/cache";
 import { applyEditorForm } from "../../../lib/editor-form";
+import { dispatchJob } from "../../../lib/dispatch";
 import { cmsServices } from "../../../lib/services";
 
 export type ActionState = { ok: boolean; message: string } | null;
@@ -195,10 +196,12 @@ export async function transitionAction(_prev: ActionState, form: FormData): Prom
         entityId: articleId,
         data: effects,
       });
+      // Auto-translations queued by the publish hook (i18n.policy.autoTranslate) start right away.
+      for (const jobId of effects.translationJobs) await dispatchJob(jobId);
       revalidatePath(`/articles/${articleId}`);
       return {
         ok: true,
-        message: `Published. Revalidation ${effects.revalidate.ok ? "sent" : `failed (${effects.revalidate.error ?? effects.revalidate.status})`}; IndexNow ${effects.indexNow.ok ? "pinged" : "skipped"}.`,
+        message: `Published. Revalidation ${effects.revalidate.ok ? "sent" : `failed (${effects.revalidate.error ?? effects.revalidate.status})`}; IndexNow ${effects.indexNow.ok ? "pinged" : "skipped"}${effects.translationJobs.length ? `; ${effects.translationJobs.length} translation(s) queued` : ""}.`,
       };
     }
     const scheduledFor = form.get("scheduledFor") ? new Date(String(form.get("scheduledFor"))) : null;

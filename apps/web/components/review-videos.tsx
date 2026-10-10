@@ -1,6 +1,7 @@
 import { buildVideoStructuredData } from "@repo/content";
 import { publicVideo, publishedVideosForArticle } from "@repo/core";
 import { getDb } from "@repo/db";
+import { getMessages } from "../lib/i18n";
 import { jsonLdScript } from "../lib/render";
 import { LiteYouTube } from "./lite-youtube";
 
@@ -8,6 +9,7 @@ import { LiteYouTube } from "./lite-youtube";
 export async function ReviewVideos({ articleId, title }: { articleId: string; title: string }) {
   const videos = (await publishedVideosForArticle(getDb(), articleId).catch(() => [])).map(publicVideo);
   if (videos.length === 0) return null;
+  const t = await getMessages();
   const structured = buildVideoStructuredData(
     videos.map((v) => ({
       name: v.title ?? title,
@@ -23,7 +25,7 @@ export async function ReviewVideos({ articleId, title }: { articleId: string; ti
     <section aria-labelledby="video-review" className="mt-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(structured) }} />
       <h2 id="video-review" className="text-2xl font-bold tracking-tight">
-        Video review
+        {t.video.heading}
       </h2>
       <div className="mt-4 flex flex-wrap items-start gap-4">
         {videos.map((v) => (
@@ -34,6 +36,7 @@ export async function ReviewVideos({ articleId, title }: { articleId: string; ti
             thumbnailUrl={v.thumbnailUrl}
             watchUrl={v.watchUrl}
             vertical={v.kind === "short"}
+            playLabel={t.video.play(v.title ?? title)}
           />
         ))}
       </div>

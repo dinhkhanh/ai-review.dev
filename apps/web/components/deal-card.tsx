@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatDate, type Messages } from "../lib/messages";
 import { PromoCode } from "./promo-code";
 
 export interface DealView {
@@ -9,16 +10,14 @@ export interface DealView {
   discountText: string | null;
   endsAt: Date | null;
   productName: string;
-  reviewSlug?: string | null;
+  /** Review in the page locale, if any. */
+  reviewHref?: string | null;
   /** Monetised CTA (go-link with placement), or null when the product has no go-slug. */
   href: string | null;
 }
 
-const endFmt = (d: Date) =>
-  d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-
 /** One deal (FR-WEB-8). CTAs are go-links: rel="sponsored nofollow noopener" (FR-AFF-6). */
-export function DealCard({ deal }: { deal: DealView }) {
+export function DealCard({ deal, t }: { deal: DealView; t: Messages }) {
   return (
     <article className="flex h-full flex-col rounded-lg border border-border bg-bg p-5">
       {deal.discountText ? (
@@ -30,27 +29,35 @@ export function DealCard({ deal }: { deal: DealView }) {
       {deal.description ? <p className="mt-1 text-sm text-muted">{deal.description}</p> : null}
       {deal.code ? (
         <div className="mt-3">
-          <PromoCode code={deal.code} />
+          <PromoCode code={deal.code} copyLabel={t.deals.copyCode} copiedLabel={t.deals.copied} />
         </div>
       ) : null}
       <div className="mt-auto flex flex-wrap items-center gap-3 pt-4">
         {deal.href ? (
-          <a
-            href={deal.href}
-            rel="sponsored nofollow noopener"
-            target="_blank"
-            className="inline-flex h-10 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-fg hover:opacity-90"
-          >
-            Get the deal
-          </a>
+          <span className="inline-flex flex-col items-start gap-0.5">
+            {t.ads.label ? (
+              <span className="text-[0.65rem] uppercase tracking-wide text-muted">{t.ads.label}</span>
+            ) : null}
+            <a
+              href={deal.href}
+              rel="sponsored nofollow noopener"
+              target="_blank"
+              className="inline-flex h-10 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-fg hover:opacity-90"
+            >
+              {t.deals.getDeal}
+              {t.ads.marker || null}
+            </a>
+          </span>
         ) : null}
-        {deal.reviewSlug ? (
-          <Link href={`/reviews/${deal.reviewSlug}`} className="text-sm hover:underline">
-            Read our {deal.productName} review
+        {deal.reviewHref ? (
+          <Link href={deal.reviewHref} className="text-sm hover:underline">
+            {t.deals.readReview(deal.productName)}
           </Link>
         ) : null}
       </div>
-      {deal.endsAt ? <p className="mt-2 text-xs text-muted">Ends {endFmt(deal.endsAt)}</p> : null}
+      {deal.endsAt ? (
+        <p className="mt-2 text-xs text-muted">{t.deals.ends(formatDate(t, deal.endsAt, "short"))}</p>
+      ) : null}
     </article>
   );
 }

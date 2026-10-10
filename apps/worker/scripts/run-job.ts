@@ -1,6 +1,14 @@
-import { claimNextQueuedJob, createReviewJob, publishDueArticles, publishEnvFromProcess } from "@repo/core";
+import { claimNextQueuedJob, createReviewJob, getJob, publishDueArticles, publishEnvFromProcess } from "@repo/core";
 import { getDb } from "@repo/db";
-import { createStepServices, DERIVATIVE_STEPS, REVIEW_STEPS, runReviewJob, type ReviewStep } from "@repo/pipeline";
+import {
+  createStepServices,
+  DERIVATIVE_STEPS,
+  REVIEW_STEPS,
+  runHandsOnJob,
+  runReviewJob,
+  type ReviewStep,
+} from "@repo/pipeline";
+import { createPlaywrightDriver } from "../src/browser/playwright-driver";
 
 /**
  * Local pipeline runner (no Trigger.dev needed):
@@ -26,7 +34,17 @@ const log = (message: string, data?: Record<string, unknown>) =>
   );
 
 const db = getDb();
-const services = createStepServices(db);
+const services = { ...createStepServices(db), makeBrowser: () => createPlaywrightDriver() };
+
+/** Hands-on jobs (FR-RES-7) have their own runner; everything else is a review job. */
+async function runJob(jobId: string, opts: Parameters<typeof runReviewJob>[2] = {}) {
+  const job = await getJob(db, jobId);
+  if (job?.preset === "hands_on") {
+    const r = await runHandsOnJob(services, jobId, { log: opts.log });
+    return { articleId: null, outcome: `hands_on:${r.status}` };
+  }
+  return runReviewJob(services, jobId, opts);
+}
 
 if (args[0] === "--poll") {
   log(`runner polling for queued jobs (storage: ${services.storage?.kind})`);
@@ -34,7 +52,7 @@ if (args[0] === "--poll") {
     const jobId = await claimNextQueuedJob(db);
     if (jobId) {
       log(`claimed job ${jobId}`);
-      await runReviewJob(services, jobId, { log }).then(
+      await runJob(jobId, { log }).then(
         (r) => log(`job ${jobId} done`, { articleId: r.articleId, outcome: r.outcome }),
         (e) => log(`job ${jobId} failed: ${e instanceof Error ? e.message : String(e)}`),
       );
@@ -57,7 +75,7 @@ if (args[0] === "--poll") {
     console.error("Usage: run-job <jobId> [--from <step>] [--only <step>]  |  run-job --url <url>  |  run-job --poll");
     process.exit(1);
   }
-  const result = await runReviewJob(services, jobId, {
+  const result = await runJob(jobId, {
     fromStep: asStep(flag("--from")),
     onlyStep: asStep(flag("--only")),
     log,

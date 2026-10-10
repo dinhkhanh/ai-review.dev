@@ -6,10 +6,13 @@ import {
   type ProgramStatus,
   type RedirectPolicy,
 } from "@repo/affiliate";
+import { CONTENT_LOCALES, DEFAULT_CONTENT_LOCALE, type ContentLocale } from "@repo/content";
 import {
+  affiliateExperiments,
   affiliateLinks,
   affiliatePrograms,
   and,
+  articles,
   asc,
   clicks,
   count,
@@ -167,6 +170,14 @@ export async function updateLink(db: DbOrTx, id: string, patch: Partial<LinkInpu
 }
 
 export async function deleteLink(db: DbOrTx, id: string) {
+  // Deleting a variant mid-test would skew the split and orphan its report row (FR-AFF-13).
+  const [running] = await db
+    .select({ id: affiliateExperiments.id })
+    .from(affiliateLinks)
+    .innerJoin(affiliateExperiments, eq(affiliateExperiments.id, affiliateLinks.experimentId))
+    .where(and(eq(affiliateLinks.id, id), eq(affiliateExperiments.status, "running")))
+    .limit(1);
+  if (running) throw new DomainError("conflict", "Stop or complete the link's A/B experiment before deleting it");
   await db.delete(affiliateLinks).where(eq(affiliateLinks.id, id));
 }
 
@@ -191,9 +202,10 @@ export async function loadGoLinkTable(db: DbOrTx, slug: string): Promise<GoLinkT
   if (!go) return null;
   const [rows, catchAll] = await Promise.all([
     db
-      .select({ link: affiliateLinks, program: affiliatePrograms })
+      .select({ link: affiliateLinks, program: affiliatePrograms, experimentStatus: affiliateExperiments.status })
       .from(affiliateLinks)
       .leftJoin(affiliatePrograms, eq(affiliatePrograms.id, affiliateLinks.programId))
+      .leftJoin(affiliateExperiments, eq(affiliateExperiments.id, affiliateLinks.experimentId))
       .where(eq(affiliateLinks.productId, go.productId)),
     catchAllConfig(db),
   ]);
@@ -202,7 +214,7 @@ export async function loadGoLinkTable(db: DbOrTx, slug: string): Promise<GoLinkT
     productId: go.productId,
     fallbackUrl: go.fallbackUrl,
     catchAll,
-    links: rows.map(({ link, program }) => ({
+    links: rows.map(({ link, program, experimentStatus }) => ({
       id: link.id,
       destinationUrl: link.destinationUrl,
       region: link.region,
@@ -211,6 +223,8 @@ export async function loadGoLinkTable(db: DbOrTx, slug: string): Promise<GoLinkT
       weight: link.weight,
       startsAt: link.startsAt,
       endsAt: link.endsAt,
+      // Only running tests tag clicks and SubIDs (FR-AFF-13).
+      experimentId: experimentStatus === "running" ? link.experimentId : null,
       program: program
         ? {
             id: program.id,
@@ -245,6 +259,34 @@ export interface ClickInput {
   uaHash?: string | null;
   isBot: boolean;
   fallback: boolean;
+  /** Running A/B test of the chosen link (FR-AFF-13). */
+  experimentId?: string | null;
+  /** Locale of the page the click came from. */
+  locale?: string | null;
+}
+
+/** Content locale of a site path from its prefix (`/de/reviews/x` → "de"); English otherwise. */
+export function localeFromPath(path: string | null | undefined): ContentLocale {
+  const first = path?.split("/")[1]?.toLowerCase();
+  return CONTENT_LOCALES.find((l) => l !== DEFAULT_CONTENT_LOCALE && l === first) ?? DEFAULT_CONTENT_LOCALE;
+}
+
+/**
+ * Article a click came from: the go-link carries only the slug, so prefer the article in the page's
+ * locale (translations may share a slug), then reviews, then the oldest.
+ */
+export async function articleIdForClick(db: DbOrTx, slug: string, locale: string) {
+  const [row] = await db
+    .select({ id: articles.id })
+    .from(articles)
+    .where(eq(articles.slug, slug))
+    .orderBy(
+      sql`(${articles.locale} = ${locale}) desc`,
+      sql`(${articles.type} = 'review') desc`,
+      asc(articles.createdAt),
+    )
+    .limit(1);
+  return row?.id ?? null;
 }
 
 /** Click log row (FR-AFF-7). Called after the redirect response is sent. */

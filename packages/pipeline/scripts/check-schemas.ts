@@ -1,7 +1,9 @@
 import { createLlm, LlmTruncatedError, MODELS } from "@repo/ai";
 import { seoBriefSchema } from "@repo/content";
+import { handsOnFindingsSchema } from "@repo/core";
 import type { z } from "zod";
 import { articleDraftSchema } from "../src/article-builder";
+import { agentActionSchema } from "../src/hands-on/agent";
 import { fixSchema, verdictSchema } from "../src/fact-check-core";
 import { sectionSchema } from "../src/section";
 import { classificationSchema } from "../src/sourcing/classify";
@@ -13,6 +15,7 @@ import { factSheetDraftSchema } from "../src/steps/fact-sheet";
 import { resolvedSchema } from "../src/steps/resolve-product";
 import { socialDraftSchema } from "../src/steps/social";
 import { styleSchema } from "../src/steps/style-pass";
+import { catalogSchema, translatedSegmentsSchema } from "../src/translate/steps";
 import { videoScriptDraftSchema } from "../src/video/script";
 
 /**
@@ -37,6 +40,10 @@ const schemas: Array<[string, z.ZodType, string]> = [
   ["video_script", videoScriptDraftSchema, MODELS.sonnet],
   ["derivative_write", derivativeDraftSchema, MODELS.opus],
   ["social", socialDraftSchema, MODELS.sonnet],
+  ["hands_on_step", agentActionSchema, MODELS.opus],
+  ["hands_on_findings", handsOnFindingsSchema, MODELS.opus],
+  ["translate", translatedSegmentsSchema, MODELS.opus],
+  ["translate_catalog", catalogSchema, MODELS.opus],
 ];
 let failed = 0;
 for (const [name, schema, model] of schemas) {

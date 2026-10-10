@@ -12,12 +12,15 @@ export function LiteYouTube({
   thumbnailUrl,
   watchUrl,
   vertical,
+  playLabel,
 }: {
   youtubeId: string;
   title: string;
   thumbnailUrl: string;
   watchUrl: string;
   vertical: boolean;
+  /** Accessible name of the play link (localised). */
+  playLabel: string;
 }) {
   const [playing, setPlaying] = useState(false);
   const frame = vertical ? "aspect-[9/16] max-w-xs" : "aspect-video w-full";
@@ -40,7 +43,7 @@ export function LiteYouTube({
         setPlaying(true);
       }}
       className={`group relative block overflow-hidden rounded-lg bg-black ${frame}`}
-      aria-label={`Play video: ${title}`}
+      aria-label={playLabel}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- remote thumbnail, lazy, no layout shift (fixed aspect) */}
       <img src={thumbnailUrl} alt="" loading="lazy" className="h-full w-full object-cover opacity-90" />

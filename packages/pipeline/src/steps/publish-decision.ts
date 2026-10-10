@@ -1,4 +1,4 @@
-import { articlePath, type QaScorecard } from "@repo/content";
+import { localizedArticlePath, type QaScorecard } from "@repo/content";
 import {
   afterPublish,
   DomainError,
@@ -109,7 +109,7 @@ export const publishDecisionStep = defineStep({
       minSoftScore: rule?.minSoftScore ?? 0.85,
     });
     const score = version.qaScorecard ? softScore(version.qaScorecard) : 0;
-    const path = articlePath(article.type, article.slug);
+    const path = localizedArticlePath(article.type, article.slug, article.locale);
 
     if (verdict.eligible) {
       if (article.status !== "approved") await transitionArticle(ctx.db, article.id, "approved");
