@@ -19,6 +19,8 @@ export interface SaveImageInput {
   licenseNote?: string | null;
   capturedAt?: Date | null;
   lossless?: boolean;
+  /** Original asset this one was derived from (processed screenshots, FR-MED-3). */
+  parentAssetId?: string | null;
 }
 
 export type MediaAssetRow = typeof mediaAssets.$inferSelect;
@@ -63,6 +65,7 @@ export async function saveImageAsset(
       articleId: input.articleId ?? null,
       licenseNote: input.licenseNote ?? null,
       capturedAt: input.capturedAt ?? null,
+      parentAssetId: input.parentAssetId ?? null,
     })
     .onConflictDoNothing({ target: mediaAssets.storageKey })
     .returning();

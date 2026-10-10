@@ -1,10 +1,11 @@
-import { articleText, blockText } from "@repo/content";
+import { articlePath, articleText, blockText } from "@repo/content";
 import {
   ARTICLE_TRANSITIONS,
   getArticle,
   getVersion,
   listComments,
-  listSources,
+  articleProductIds,
+  listSourcesForProducts,
   listVersions,
   loadArticleRenderData,
   sourceRefs,
@@ -31,6 +32,10 @@ import {
   transitionAction,
 } from "../actions";
 import { BlockEditor } from "./block-editor";
+import { MediaPanel } from "./media-panel";
+import { SocialPanel } from "./social-panel";
+import { VideoPanel } from "./video-panel";
+import { VoteCounts } from "./vote-counts";
 
 export const metadata = { title: "Article" };
 // Section regeneration calls the model; allow long server actions on Vercel.
@@ -62,7 +67,7 @@ export default async function ArticlePage({
   const [versions, comments, sources] = await Promise.all([
     listVersions(db, id),
     listComments(db, id),
-    article.productId ? listSources(db, article.productId) : Promise.resolve([]),
+    listSourcesForProducts(db, articleProductIds(article)),
   ]);
   const refs = sourceRefs(sources);
   const version = data?.version;
@@ -91,8 +96,13 @@ export default async function ArticlePage({
             {article.publishedVersionId ? (
               <>
                 · live{" "}
-                <a href={`${site}/reviews/${article.slug}`} target="_blank" rel="noopener" className="underline">
-                  /reviews/{article.slug}
+                <a
+                  href={`${site}${articlePath(article.type, article.slug)}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="underline"
+                >
+                  {articlePath(article.type, article.slug)}
                 </a>
                 {article.publishedVersionId !== article.currentVersionId ? (
                   <span className="text-warning">(unpublished edits)</span>
@@ -169,6 +179,8 @@ export default async function ArticlePage({
             commentCounts={commentCounts}
           />
           <aside className="space-y-6">
+            <VoteCounts articleId={id} />
+            <SocialPanel articleId={id} social={article.social} />
             <section className="space-y-2">
               <h2 className="font-semibold">Regenerate a section</h2>
               <ActionForm action={regenerateSectionAction} className="space-y-2">
@@ -197,6 +209,8 @@ export default async function ArticlePage({
                 </Button>
               </form>
             </section>
+            <MediaPanel articleId={id} productId={article.productId} blocks={version.blocks} />
+            <VideoPanel articleId={id} />
             <section>
               <h2 className="font-semibold">Sources</h2>
               <ol className="mt-2 max-h-[60vh] space-y-1.5 overflow-auto text-xs">

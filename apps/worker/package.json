@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "deploy": "trigger deploy",
+    "deploy": "pnpm --filter @repo/video bundle && trigger deploy",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "run-job": "tsx --env-file-if-exists=../../.env scripts/run-job.ts",
-    "runner": "tsx --env-file-if-exists=../../.env scripts/run-job.ts --poll"
+    "runner": "tsx --env-file-if-exists=../../.env scripts/run-job.ts --poll",
+    "video": "tsx --env-file-if-exists=../../.env scripts/run-video.ts",
+    "youtube-auth": "tsx --env-file-if-exists=../../.env scripts/youtube-auth.ts"
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",
@@ -19,6 +21,7 @@
     "@repo/db": "workspace:*",
     "@repo/media": "workspace:*",
     "@repo/pipeline": "workspace:*",
+    "@repo/video": "workspace:*",
     "@resvg/resvg-js": "2.6.2",
     "@trigger.dev/sdk": "4.7.3",
     "sharp": "0.35.5",

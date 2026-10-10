@@ -1,5 +1,5 @@
 import type { LinkFormat, LinkStatus, Network, ProgramStatus, RedirectPolicy } from "./index";
-import { buildSubId, buildTrackedUrl, withUtm } from "./links";
+import { buildSubId, buildTrackedUrl, withUtm, wrapCatchAll, type CatchAllConfig } from "./links";
 
 /** One affiliate link with the program fields the resolver needs. */
 export interface LinkCandidate {
@@ -30,6 +30,8 @@ export interface GoLinkTable {
   /** Vendor URL used when no affiliate link is usable (FR-AFF-5). */
   fallbackUrl: string;
   links: LinkCandidate[];
+  /** Catch-all network wrapping the fallback when enabled in settings (FR-AFF-5). */
+  catchAll?: CatchAllConfig | null;
 }
 
 export interface ResolveContext {
@@ -109,8 +111,9 @@ export function resolveGoLink(table: GoLinkTable, ctx: ResolveContext = {}): Res
       remaining = remaining.filter((l) => l.id !== link.id);
     }
   }
+  const vendorUrl = withUtm(table.fallbackUrl, { campaign: table.slug, content: ctx.placement ?? null });
   return {
-    url: withUtm(table.fallbackUrl, { campaign: table.slug, content: ctx.placement ?? null }),
+    url: table.catchAll ? wrapCatchAll(vendorUrl, table.catchAll, subId) : vendorUrl,
     linkId: null,
     programId: null,
     fallback: true,

@@ -157,9 +157,9 @@ export async function loadArticleRenderData(db: DbOrTx, articleId: string, versi
   const [product] = article.productId
     ? await db.select().from(products).where(eq(products.id, article.productId)).limit(1)
     : [];
-  const [category] = product?.categoryId
-    ? await db.select().from(categories).where(eq(categories.id, product.categoryId)).limit(1)
-    : [];
+  const categoryId = article.categoryId ?? product?.categoryId ?? null;
+  const [category] = categoryId ? await db.select().from(categories).where(eq(categories.id, categoryId)).limit(1) : [];
+  const listProducts = article.type === "review" ? [] : await loadListProducts(db, article.productIds);
   const [author] = article.authorId
     ? await db.select().from(authors).where(eq(authors.id, article.authorId)).limit(1)
     : [await getDefaultAuthor(db)];
@@ -214,6 +214,8 @@ export async function loadArticleRenderData(db: DbOrTx, articleId: string, versi
     goSlug: go?.slug ?? null,
     factSheet: factSheet?.data ?? null,
     factSheetUpdatedAt: factSheet?.createdAt ?? null,
+    /** Comparisons and lists (FR-CON-8): the products in article order, with CTAs and review links. */
+    listProducts,
     competitors: competitorRows.map((c) => ({
       ...c,
       reviewSlug: competitorReviews.find((r) => r.productId === c.productId)?.slug ?? null,
@@ -223,7 +225,89 @@ export async function loadArticleRenderData(db: DbOrTx, articleId: string, versi
 
 export type ArticleRenderData = NonNullable<Awaited<ReturnType<typeof loadArticleRenderData>>>;
 
-export async function getPublishedArticleBySlug(db: DbOrTx, slug: string, type: "review" = "review", locale = "en") {
+type ArticleType = (typeof articles.type.enumValues)[number];
+
+/** Products of a comparison or list, in article order, with go-slug and live review (if any). */
+async function loadListProducts(db: DbOrTx, ids: string[]) {
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      slug: products.slug,
+      tagline: products.tagline,
+      websiteUrl: products.websiteUrl,
+      logoAssetId: products.logoAssetId,
+      status: products.status,
+    })
+    .from(products)
+    .where(inArray(products.id, ids));
+  const [slugs, reviews] = await Promise.all([
+    db.select().from(goSlugs).where(inArray(goSlugs.productId, ids)),
+    db
+      .select({ productId: articles.productId, slug: articles.slug, score: articleVersions.overallScore })
+      .from(articles)
+      .innerJoin(articleVersions, eq(articleVersions.id, articles.publishedVersionId))
+      .where(and(inArray(articles.productId, ids), eq(articles.type, "review"), isLive())),
+  ]);
+  return ids.flatMap((id) => {
+    const p = rows.find((r) => r.id === id);
+    if (!p) return [];
+    const review = reviews.find((r) => r.productId === id);
+    return [
+      {
+        ...p,
+        goSlug: slugs.find((g) => g.productId === id)?.slug ?? null,
+        reviewSlug: review?.slug ?? null,
+        score: review?.score ?? null,
+      },
+    ];
+  });
+}
+
+/**
+ * Live articles of any type for index pages, feeds and the home page (FR-WEB-1). The category is
+ * the article's own (lists) or its product's (reviews).
+ */
+export async function listPublishedArticles(
+  db: DbOrTx,
+  opts: { types?: ArticleType[]; categorySlug?: string; limit?: number; offset?: number } = {},
+) {
+  return db
+    .select({
+      id: articles.id,
+      type: articles.type,
+      slug: articles.slug,
+      title: articles.title,
+      publishedAt: articles.publishedAt,
+      updatedAt: articles.updatedAt,
+      lastVerifiedAt: articles.lastVerifiedAt,
+      overallScore: articleVersions.overallScore,
+      metaDescription: sql<string | null>`${articleVersions.seo} ->> 'metaDescription'`,
+      ogImageAssetId: sql<string | null>`${articleVersions.seo} ->> 'ogImageAssetId'`,
+      productCount: sql<number>`cardinality(${articles.productIds})`,
+      categorySlug: categories.slug,
+      categoryName: categories.name,
+    })
+    .from(articles)
+    .innerJoin(articleVersions, eq(articleVersions.id, articles.publishedVersionId))
+    .leftJoin(products, eq(products.id, articles.productId))
+    .leftJoin(categories, sql`${categories.id} = coalesce(${articles.categoryId}, ${products.categoryId})`)
+    .where(
+      and(
+        isLive(),
+        opts.types?.length ? inArray(articles.type, opts.types) : undefined,
+        opts.categorySlug ? eq(categories.slug, opts.categorySlug) : undefined,
+      ),
+    )
+    .orderBy(desc(articles.publishedAt))
+    .limit(Math.min(opts.limit ?? 24, 100))
+    .offset(opts.offset ?? 0);
+}
+
+export type ArticleCard = Awaited<ReturnType<typeof listPublishedArticles>>[number];
+
+export async function getPublishedArticleBySlug(db: DbOrTx, slug: string, type: ArticleType = "review", locale = "en") {
   const [row] = await db
     .select({ id: articles.id, publishedVersionId: articles.publishedVersionId })
     .from(articles)

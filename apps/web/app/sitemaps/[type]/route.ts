@@ -1,3 +1,4 @@
+import { articlePath } from "@repo/content";
 import { listCategoriesWithCounts, publishedSitemapEntries } from "@repo/core";
 import { getDb } from "@repo/db";
 import { SITE } from "../../../lib/site";
@@ -6,7 +7,7 @@ import { STATIC_PAGES } from "../../../lib/static-pages";
 export const revalidate = 3600;
 export const dynamicParams = false;
 export function generateStaticParams() {
-  return ["pages.xml", "reviews.xml", "categories.xml"].map((type) => ({ type }));
+  return ["pages.xml", "reviews.xml", "guides.xml", "categories.xml"].map((type) => ({ type }));
 }
 
 const xmlEscape = (s: string) => s.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -32,6 +33,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ typ
       entries = [
         { loc: SITE.url },
         { loc: `${SITE.url}/reviews` },
+        { loc: `${SITE.url}/compare` },
+        { loc: `${SITE.url}/alternatives` },
+        { loc: `${SITE.url}/best` },
+        { loc: `${SITE.url}/deals` },
         ...STATIC_PAGES.map((p) => ({ loc: `${SITE.url}${p.path}` })),
       ];
       break;
@@ -39,6 +44,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ typ
       entries = (await publishedSitemapEntries(db))
         .filter((r) => r.type === "review")
         .map((r) => ({ loc: `${SITE.url}/reviews/${r.slug}`, lastmod: r.updatedAt }));
+      break;
+    case "guides":
+      entries = (await publishedSitemapEntries(db))
+        .filter((r) => r.type !== "review")
+        .map((r) => ({ loc: `${SITE.url}${articlePath(r.type, r.slug)}`, lastmod: r.updatedAt }));
       break;
     case "categories":
       entries = (await listCategoriesWithCounts(db))

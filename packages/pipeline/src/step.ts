@@ -1,5 +1,13 @@
 import type { CostHandler, Embedder, Effort, FirecrawlAdapter, Llm } from "@repo/ai";
-import { appendStepLogs, costSink, finishStep, latestStepRuns, startStep } from "@repo/core";
+import {
+  appendStepLogs,
+  costSink,
+  finishStep,
+  latestStepRuns,
+  publishEnvFromProcess,
+  startStep,
+  type PublishEnv,
+} from "@repo/core";
 import { eq, reviewJobs, type Database } from "@repo/db";
 import type { StorageDriver } from "@repo/media";
 import type { z } from "zod";
@@ -21,6 +29,13 @@ export const STEP_NAMES = [
   "style_pass",
   "graphics",
   "qa_gates",
+  "site_check",
+  "derivative_prepare",
+  "derivative_brief",
+  "derivative_write",
+  "refresh_plan",
+  "refresh_rewrite",
+  "social",
   "publish",
   "video_script",
   "tts",
@@ -40,6 +55,8 @@ export interface StepServices {
   storage?: StorageDriver;
   /** HTTP for robots.txt, logos and screenshots; injectable for tests. */
   fetch?: typeof fetch;
+  /** Site URL and revalidation/IndexNow settings for publishing steps; defaults to process env. */
+  publishEnv?: PublishEnv;
 }
 
 export interface StepContext {
@@ -52,6 +69,7 @@ export interface StepContext {
   embedder: Embedder | null;
   storage: StorageDriver | null;
   fetch: typeof fetch;
+  publishEnv: PublishEnv;
   /** The job's raw intake (FR-INT-1). */
   jobInput: Record<string, unknown>;
   log: (message: string, data?: Record<string, unknown>) => void;
@@ -133,6 +151,7 @@ export async function executeStep<I extends z.ZodType, O extends z.ZodType>(
     embedder: services.makeEmbedder?.(handler) ?? null,
     storage: services.storage ?? null,
     fetch: services.fetch ?? fetch,
+    publishEnv: services.publishEnv ?? publishEnvFromProcess(),
     jobInput: (job?.input ?? {}) as Record<string, unknown>,
     log: (message, data) => {
       logs.push({ ts: new Date().toISOString(), message, ...(data ? { data } : {}) });

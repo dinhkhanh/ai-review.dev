@@ -9,6 +9,8 @@ import {
   deleteLink,
   DomainError,
   getProduct,
+  markProductDiscontinued,
+  reactivateProduct,
   recordAudit,
   saveFactSheet,
   setGoSlugFallback,
@@ -54,16 +56,57 @@ export async function updateProductAction(_prev: ActionState, f: FormData): Prom
   const user = await requireUser();
   const id = String(f.get("productId"));
   return guard(async () => {
-    await updateProduct(getDb(), id, {
+    const db = getDb();
+    const before = await getProduct(db, id);
+    if (!before) throw new DomainError("not_found", "Product not found");
+    const status = (str(f, "status") as "draft" | "active" | "discontinued" | "archived" | null) ?? before.status;
+    const interval = num(f, "refreshIntervalDays") ?? before.refreshIntervalDays;
+    await updateProduct(db, id, {
       name: str(f, "name") ?? undefined,
       tagline: str(f, "tagline"),
       categoryId: str(f, "categoryId"),
-      status: (str(f, "status") as "draft" | "active" | "discontinued" | "archived" | null) ?? undefined,
-      refreshIntervalDays: num(f, "refreshIntervalDays") ?? undefined,
+      refreshIntervalDays: interval,
+      ...(status === before.status && status === "discontinued" ? { statusNote: str(f, "statusNote") } : {}),
+      // A new interval moves the next refresh relative to the last research (FR-MNT-1).
+      ...(interval !== before.refreshIntervalDays && before.lastResearchedAt && !before.discontinuedAt
+        ? { nextRefreshAt: new Date(before.lastResearchedAt.getTime() + interval * 86_400_000) }
+        : {}),
     });
-    await recordAudit(getDb(), { actorUserId: user.id, action: "product.update", entityType: "product", entityId: id });
+    // Status changes with side effects (FR-MNT-4): discontinuing pauses links; reactivating reschedules.
+    if (status !== before.status) {
+      if (status === "discontinued") {
+        await markProductDiscontinued(db, id, str(f, "statusNote") ?? "This product has been discontinued.");
+      } else if (before.status === "discontinued" && status === "active") {
+        await reactivateProduct(db, id);
+      } else {
+        await updateProduct(db, id, { status });
+      }
+      await invalidateProductLinks(id);
+    }
+    await recordAudit(db, {
+      actorUserId: user.id,
+      action: "product.update",
+      entityType: "product",
+      entityId: id,
+      data: status !== before.status ? { status: { from: before.status, to: status } } : undefined,
+    });
     revalidatePath(`/products/${id}`);
   });
+}
+
+/** Undo a discontinued flag (false positive from the site check). Links stay paused for review. */
+export async function reactivateProductAction(f: FormData) {
+  const user = await requireUser();
+  const id = String(f.get("productId"));
+  await reactivateProduct(getDb(), id);
+  await invalidateProductLinks(id);
+  await recordAudit(getDb(), {
+    actorUserId: user.id,
+    action: "product.reactivate",
+    entityType: "product",
+    entityId: id,
+  });
+  revalidatePath(`/products/${id}`);
 }
 
 /** FR-RES-8: manual fact-sheet edits create a new version before writing begins. */

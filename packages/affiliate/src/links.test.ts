@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSubId, buildTrackedUrl, parseSubId, sanitizeToken, withUtm } from "./links";
+import { buildSubId, buildTrackedUrl, parseSubId, sanitizeToken, withUtm, wrapCatchAll } from "./links";
 
 describe("sanitizeToken", () => {
   it("lowercases, replaces unsafe runs and trims hyphens", () => {
@@ -149,5 +149,11 @@ describe("withUtm", () => {
   });
   it("omits an empty campaign", () => {
     expect(new URL(withUtm("https://vendor.com/", { campaign: "!!!" })).searchParams.has("utm_campaign")).toBe(false);
+  });
+});
+
+describe("wrapCatchAll", () => {
+  it("rejects non-http destinations", () => {
+    expect(() => wrapCatchAll("javascript:alert(1)", { network: "skimlinks", publisherId: "x" }, "s")).toThrow();
   });
 });

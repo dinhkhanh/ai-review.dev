@@ -1,4 +1,5 @@
-import { listPublishedReviews } from "@repo/core";
+import { articlePath } from "@repo/content";
+import { listPublishedArticles } from "@repo/core";
 import { getDb } from "@repo/db";
 import { SITE } from "../../lib/site";
 
@@ -6,15 +7,15 @@ export const revalidate = 3600;
 
 const esc = (s: string) => s.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
-/** RSS 2.0 feed of the latest reviews (FR-WEB-4). */
+/** RSS 2.0 feed of the latest reviews, comparisons and lists (FR-WEB-4). */
 export async function GET() {
-  const reviews = await listPublishedReviews(getDb(), { limit: 50 });
+  const reviews = await listPublishedArticles(getDb(), { limit: 50 });
   const items = reviews
     .map(
       (r) => `    <item>
       <title>${esc(r.title)}</title>
-      <link>${SITE.url}/reviews/${r.slug}</link>
-      <guid isPermaLink="true">${SITE.url}/reviews/${r.slug}</guid>
+      <link>${SITE.url}${articlePath(r.type, r.slug)}</link>
+      <guid isPermaLink="true">${SITE.url}${articlePath(r.type, r.slug)}</guid>
       ${r.publishedAt ? `<pubDate>${r.publishedAt.toUTCString()}</pubDate>` : ""}
       ${r.metaDescription ? `<description>${esc(r.metaDescription)}</description>` : ""}
       ${r.categoryName ? `<category>${esc(r.categoryName)}</category>` : ""}

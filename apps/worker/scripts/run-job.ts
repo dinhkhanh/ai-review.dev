@@ -1,6 +1,6 @@
 import { claimNextQueuedJob, createReviewJob, publishDueArticles, publishEnvFromProcess } from "@repo/core";
 import { getDb } from "@repo/db";
-import { createStepServices, REVIEW_STEPS, runReviewJob, type ReviewStep } from "@repo/pipeline";
+import { createStepServices, DERIVATIVE_STEPS, REVIEW_STEPS, runReviewJob, type ReviewStep } from "@repo/pipeline";
 
 /**
  * Local pipeline runner (no Trigger.dev needed):
@@ -16,8 +16,8 @@ const flag = (name: string) => {
 };
 const asStep = (s: string | undefined) => {
   if (!s) return undefined;
-  if (!(REVIEW_STEPS as readonly string[]).includes(s))
-    throw new Error(`Unknown step ${s}. Steps: ${REVIEW_STEPS.join(", ")}`);
+  const all = [...new Set<string>([...REVIEW_STEPS, ...DERIVATIVE_STEPS])];
+  if (!all.includes(s)) throw new Error(`Unknown step ${s}. Steps: ${all.join(", ")}`);
   return s as ReviewStep;
 };
 const log = (message: string, data?: Record<string, unknown>) =>
@@ -35,7 +35,7 @@ if (args[0] === "--poll") {
     if (jobId) {
       log(`claimed job ${jobId}`);
       await runReviewJob(services, jobId, { log }).then(
-        (r) => log(`job ${jobId} done`, { articleId: r.articleId, hardGatesPassed: r.qa.hardGatesPassed }),
+        (r) => log(`job ${jobId} done`, { articleId: r.articleId, outcome: r.outcome }),
         (e) => log(`job ${jobId} failed: ${e instanceof Error ? e.message : String(e)}`),
       );
       continue;

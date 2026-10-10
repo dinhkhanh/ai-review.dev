@@ -100,6 +100,10 @@ export type ProductPatch = Partial<
     | "logoAssetId"
     | "lastResearchedAt"
     | "refreshIntervalDays"
+    | "nextRefreshAt"
+    | "discontinuedAt"
+    | "statusNote"
+    | "websiteUrl"
   >
 >;
 

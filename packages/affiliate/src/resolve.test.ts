@@ -115,6 +115,32 @@ describe("resolveGoLink", () => {
       "https://notion.so/?utm_source=ai-review.dev&utm_medium=referral&utm_campaign=notion&utm_content=sticky_mobile",
     );
   });
+  it("wraps the vendor fallback in the catch-all network when configured (FR-AFF-5)", () => {
+    const base = table([link({ status: "paused" })]);
+    const sky = resolveGoLink(
+      { ...base, catchAll: { network: "skimlinks", publisherId: "123X456" } },
+      { articleSlug: "notion-review", placement: "hero", now: NOW },
+    );
+    expect(sky.fallback).toBe(true);
+    const u = new URL(sky.url);
+    expect(u.origin).toBe("https://go.skimresources.com");
+    expect(u.searchParams.get("id")).toBe("123X456");
+    expect(u.searchParams.get("xcust")).toBe("notion-review--hero");
+    expect(u.searchParams.get("url")).toContain("https://notion.so/?utm_source=ai-review.dev");
+    const sov = new URL(
+      resolveGoLink({ ...base, catchAll: { network: "sovrn", publisherId: "key1" } }, { now: NOW }).url,
+    );
+    expect(sov.origin).toBe("https://redirect.viglink.com");
+    expect(sov.searchParams.get("key")).toBe("key1");
+    expect(sov.searchParams.get("cuid")).toBe("go--direct");
+    expect(sov.searchParams.get("u")).toContain("utm_campaign=notion");
+    // A usable direct link always wins over the catch-all.
+    const direct = resolveGoLink(
+      { ...table([link()]), catchAll: { network: "sovrn", publisherId: "k" } },
+      { now: NOW },
+    );
+    expect(direct.fallback).toBe(false);
+  });
   it("falls through a link with a broken URL to the next one, then to the vendor", () => {
     const broken = link({ id: "bad", priority: 1, destinationUrl: "ftp://nope" });
     const good = link({ id: "good", priority: 2 });

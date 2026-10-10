@@ -7,7 +7,10 @@
     ".": "./src/index.ts",
     "./llm": "./src/llm/index.ts",
     "./firecrawl": "./src/firecrawl/index.ts",
-    "./embeddings": "./src/embeddings/index.ts"
+    "./embeddings": "./src/embeddings/index.ts",
+    "./tts": "./src/tts/index.ts",
+    "./youtube": "./src/youtube/index.ts",
+    "./images": "./src/images/index.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",

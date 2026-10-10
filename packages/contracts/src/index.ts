@@ -83,6 +83,21 @@ export const ArticleBodySchema = articleBodySchema.meta({
     "Typed content blocks. Citation marks reference `sources[].id`; go-link marks and CTA blocks reference `links.go`.",
 });
 
+/** A review video uploaded to YouTube (FR-VID-4). Renders and drafts are never exposed. */
+export const VideoSchema = z
+  .object({
+    kind: z.enum(["short", "long"]).openapi({ description: "short = vertical 9:16, long = 16:9" }),
+    youtubeId: z.string(),
+    title: z.string().nullable(),
+    description: z.string().nullable(),
+    durationSeconds: z.number().int().nullable(),
+    uploadedAt: z.iso.datetime().nullable(),
+    embedUrl: z.url(),
+    watchUrl: z.url(),
+    thumbnailUrl: z.url(),
+  })
+  .openapi("Video");
+
 export const ReviewDetailSchema = z
   .object({
     slug: z.string(),
@@ -118,6 +133,7 @@ export const ReviewDetailSchema = z
     competitors: z.array(
       z.object({ name: z.string(), reviewSlug: z.string().nullable(), note: z.string().nullable() }),
     ),
+    videos: z.array(VideoSchema).openapi({ description: "Video reviews on YouTube; empty when none" }),
   })
   .openapi("ReviewDetail");
 
@@ -157,14 +173,135 @@ export const CategoryDetailSchema = CategorySchema.extend({ reviews: z.array(Rev
   "CategoryDetail",
 );
 
+export const ArticleTypeSchema = z
+  .enum(["review", "comparison", "alternatives", "best_of"])
+  .openapi("ArticleType", { description: "Web paths: /reviews, /compare, /alternatives, /best + /{slug}" });
+
+export const SearchResultSchema = ReviewSummarySchema.extend({
+  type: ArticleTypeSchema,
+  url: z.url().openapi({ description: "Canonical web URL of the article" }),
+}).openapi("SearchResult");
+
+export const SearchResultListSchema = z
+  .object({ data: z.array(SearchResultSchema), pagination: PaginationSchema })
+  .openapi("SearchResultList");
+
+/** Comparisons, alternatives lists and best-of lists (FR-CON-8). */
+export const GuideTypeSchema = z.enum(["comparison", "alternatives", "best_of"]).openapi("GuideType");
+
+export const GuideSummarySchema = z
+  .object({
+    type: GuideTypeSchema,
+    slug: z.string().openapi({ example: "notion-vs-coda" }),
+    title: z.string(),
+    description: z.string().nullable(),
+    publishedAt: z.iso.datetime().nullable(),
+    updatedAt: z.iso.datetime(),
+    lastVerifiedAt: z.iso.datetime().nullable(),
+    productCount: z.number().int(),
+    category: z.object({ slug: z.string(), name: z.string() }).nullable(),
+    image: ImageSchema.nullable(),
+    url: z.url(),
+  })
+  .openapi("GuideSummary");
+
+export const GuideListSchema = z
+  .object({ data: z.array(GuideSummarySchema), pagination: PaginationSchema })
+  .openapi("GuideList");
+
+export const GuideDetailSchema = z
+  .object({
+    type: GuideTypeSchema,
+    slug: z.string(),
+    title: z.string(),
+    seo: z.object({ title: z.string(), description: z.string().nullable(), canonicalUrl: z.url() }),
+    publishedAt: z.iso.datetime().nullable(),
+    updatedAt: z.iso.datetime(),
+    lastVerifiedAt: z.iso.datetime().nullable(),
+    aiDisclosure: z.string().nullable(),
+    author: z.object({ slug: z.string(), name: z.string() }).nullable(),
+    category: z.object({ slug: z.string(), name: z.string() }).nullable(),
+    products: z
+      .array(
+        z.object({
+          id: z.uuid(),
+          slug: z.string(),
+          name: z.string(),
+          tagline: z.string().nullable(),
+          websiteUrl: z.url(),
+          reviewSlug: z.string().nullable(),
+          score: z.number().nullable(),
+          go: z.string().nullable().openapi({ description: "Go-link slug for this product's CTAs" }),
+          discontinued: z.boolean(),
+        }),
+      )
+      .openapi({ description: "Products in article order; comparison_table productIds reference `id`" }),
+    blocks: ArticleBodySchema,
+    media: z.record(z.string(), ImageSchema),
+    sources: z.array(SourceSchema),
+    links: z.object({ goBaseUrl: z.url(), web: z.url() }),
+  })
+  .openapi("GuideDetail");
+
+export const DealSchema = z
+  .object({
+    id: z.uuid(),
+    title: z.string(),
+    description: z.string().nullable(),
+    code: z.string().nullable().openapi({ description: "Promo code, if the deal needs one" }),
+    discountText: z.string().nullable().openapi({ example: "30% off first year" }),
+    endsAt: z.iso.datetime().nullable(),
+    product: z.object({ slug: z.string(), name: z.string(), logo: ImageSchema.nullable() }),
+    category: z.object({ slug: z.string(), name: z.string() }).nullable(),
+    reviewSlug: z.string(),
+    links: z.object({
+      go: z.string().nullable().openapi({ description: "Go-link slug; open `${webUrl}/go/{slug}?p=deals`" }),
+      web: z.url(),
+    }),
+  })
+  .openapi("Deal");
+
+export const DealListSchema = z.object({ data: z.array(DealSchema) }).openapi("DealList");
+
+const turnstileToken = z
+  .string()
+  .max(4096)
+  .optional()
+  .openapi({ description: "Cloudflare Turnstile token; required when the server has Turnstile enabled" });
+
+export const VoteRequestSchema = z.object({ helpful: z.boolean(), turnstileToken }).openapi("VoteRequest");
+
+export const ReportRequestSchema = z
+  .object({
+    article: z.string().max(120).optional().openapi({ description: "Review slug the report is about" }),
+    kind: z.enum(["pricing", "error", "other"]).default("other"),
+    message: z.string().min(5).max(2000),
+    email: z.email().max(200).optional(),
+    turnstileToken,
+  })
+  .openapi("ReportRequest");
+
+export const NewsletterRequestSchema = z
+  .object({ email: z.email().max(200), source: z.string().max(60).optional(), turnstileToken })
+  .openapi("NewsletterRequest");
+
+export const AcceptedResponseSchema = z
+  .object({ status: z.literal("accepted"), message: z.string() })
+  .openapi("AcceptedResponse");
+
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 export type Category = z.infer<typeof CategorySchema>;
 export type CategoryList = z.infer<typeof CategoryListSchema>;
 export type ReviewSummary = z.infer<typeof ReviewSummarySchema>;
 export type ReviewDetail = z.infer<typeof ReviewDetailSchema>;
+export type Video = z.infer<typeof VideoSchema>;
 export type ProductSummary = z.infer<typeof ProductSummarySchema>;
 export type ProductDetail = z.infer<typeof ProductDetailSchema>;
 export type Image = z.infer<typeof ImageSchema>;
+export type SearchResult = z.infer<typeof SearchResultSchema>;
+export type Deal = z.infer<typeof DealSchema>;
+export type GuideSummary = z.infer<typeof GuideSummarySchema>;
+export type GuideDetail = z.infer<typeof GuideDetailSchema>;
 
-export const API_VERSION = "1.1.0";
+export const API_VERSION = "1.3.0";

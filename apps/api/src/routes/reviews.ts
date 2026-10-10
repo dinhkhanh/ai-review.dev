@@ -6,6 +6,8 @@ import {
   getPublishedArticleBySlug,
   getSetting,
   listPublishedReviews,
+  publicVideo,
+  publishedVideosForArticle,
   searchPublishedReviews,
   type ReviewCard,
 } from "@repo/core";
@@ -83,6 +85,7 @@ export const reviewsRoutes = new OpenAPIHono<AppEnv>()
     const web = webUrl();
     const og = data.media.find((m) => m.id === data.version.seo?.ogImageAssetId);
     const logo = data.media.find((m) => m.id === data.product?.logoAssetId);
+    const videos = (await publishedVideosForArticle(db, data.article.id)).map(publicVideo);
     cacheHeaders(c, [`article:${slug}`, "reviews"]);
     return c.json(
       {
@@ -125,6 +128,7 @@ export const reviewsRoutes = new OpenAPIHono<AppEnv>()
         })),
         links: { go: data.goSlug, goBaseUrl: `${web}/go`, web: `${web}/reviews/${data.article.slug}` },
         competitors: data.competitors.map((x) => ({ name: x.name, reviewSlug: x.reviewSlug, note: x.note })),
+        videos: videos.map((v) => ({ ...v, uploadedAt: iso(v.uploadedAt) })),
       },
       200,
     );

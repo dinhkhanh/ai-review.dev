@@ -8,11 +8,13 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   "publishing.dailyCap": 5, // D-7
   "publishing.requireHumanReview": true, // D-3
   "publishing.autoPublishCategories": [],
-  "affiliate.catchAllFallback": { enabled: true, network: null }, // D-4
+  "publishing.autoPublish": { minSoftScore: 0.85 }, // FR-QA-4, used only for listed categories
+  "affiliate.catchAllFallback": { enabled: true, network: null, publisherId: null }, // D-4
   "pipeline.videoEnabled": false, // D-5: phase 2
   "pipeline.handsOnTrials": false, // D-6
   "costs.targetPerReviewUsd": { quick: 5, full: 12 }, // NFR-6
   "costs.alertMultiplier": 2,
+  "costs.defaultCeilingUsd": 15,
   "editorial.aiDisclosure": "Researched with AI assistance and reviewed by our editor.",
   "editorial.styleGuide": "",
   "editorial.bannedPhrases": [
@@ -35,6 +37,18 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   ],
   "pipeline.stepModels": {},
   "qa.thresholds": { maxReadingGrade: 11, maxSourceOverlap: 0.08, minWords: 1200 },
+  "refresh.policy": {
+    enabled: true,
+    defaultIntervalDays: 60,
+    topTrafficIntervalDays: 14,
+    topTrafficMinPageviews30d: 1000,
+    maxJobsPerRun: 5,
+  }, // FR-MNT-1
+  "linkHealth.policy": { enabled: true, failuresBeforePause: 2 }, // FR-AFF-10
+  "notifications.recipients": [],
+  "notifications.events": {},
+  "sourcing.policy": { enabled: false, sources: ["producthunt", "hackernews", "networks"], maxPerRun: 25, minScore: 1 },
+  "video.settings": { voiceId: null, kinds: ["short", "long"], youtubePrivacy: "private", autoGenerate: false },
 };
 
 /** Idempotent: safe to run on every deploy. Never overwrites values edited in the CMS. */

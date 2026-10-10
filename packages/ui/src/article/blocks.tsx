@@ -299,8 +299,28 @@ export function BlockView({ block, model, ctx }: { block: Block; model: RenderMo
         </figure>
       );
     }
-    case "video":
-      return null;
+    case "video": {
+      // Static thumbnail link (no player JS in the article body; FR-WEB-3). Unknown or not yet
+      // uploaded videos render nothing.
+      const v = model.videos?.[block.videoId];
+      if (!v) return null;
+      return (
+        <figure className="mt-6">
+          <a
+            href={v.watchUrl}
+            target="_blank"
+            rel="noopener"
+            className={`relative block overflow-hidden rounded-lg bg-black ${v.vertical ? "aspect-[9/16] max-w-xs" : "aspect-video"}`}
+          >
+            <img src={v.thumbnailUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+            <span className="absolute inset-0 flex items-center justify-center">
+              <span className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white">▶ Watch</span>
+            </span>
+          </a>
+          <figcaption className="mt-2 text-sm text-muted">{v.title}</figcaption>
+        </figure>
+      );
+    }
     case "faq":
       return (
         <div className="mt-6 divide-y divide-border rounded-lg border border-border">

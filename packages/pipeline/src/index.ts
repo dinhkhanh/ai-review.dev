@@ -1,10 +1,16 @@
 export * from "./article-builder";
 export * from "./article-lines";
+export * from "./lifecycle";
 export * from "./orchestrator";
 export * from "./prompts";
 export * from "./qa";
 export * from "./review-steps";
 export * from "./section";
+export { autoPublishVerdict, softScore } from "./steps/publish-decision";
+export { planRefresh, sectionForPath } from "./steps/refresh";
+export { probeSite } from "./steps/site-check";
 export * from "./services";
+export * from "./sourcing";
 export * from "./step";
 export { smokeStep } from "./steps/smoke";
+export * from "./video";

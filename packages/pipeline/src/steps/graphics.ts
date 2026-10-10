@@ -1,11 +1,17 @@
 import { renderOgImage, renderPricingCard, renderProsConsCard, renderScoreBadge } from "@repo/graphics";
-import { getArticle, getCurrentVersion, getProduct, latestFactSheet, setVersionQa } from "@repo/core";
+import { getArticle, getCurrentVersion, getProduct, latestFactSheet, listMedia, setVersionQa } from "@repo/core";
 import { categories, eq } from "@repo/db";
-import { saveImageAsset } from "@repo/media";
+import { saveImageAsset, saveProcessedScreenshot } from "@repo/media";
 import { z } from "zod";
 import { defineStep } from "../step";
 
-/** graphics (FR-MED-1, FR-MED-4): OG image, pricing card, pros/cons card, score badge → storage. */
+/** Desktop screenshots that also get a browser-framed version (FR-MED-3). */
+const FRAMED_ROLES = ["screenshot:home:desktop", "screenshot:pricing:desktop"];
+
+/**
+ * graphics (FR-MED-1, FR-MED-3, FR-MED-4): OG image, pricing card, pros/cons card, score badge and
+ * browser-framed screenshots → storage. Originals are kept; framed versions link to them.
+ */
 export const graphicsStep = defineStep({
   name: "graphics",
   input: z.object({ articleId: z.uuid() }),
@@ -14,21 +20,58 @@ export const graphicsStep = defineStep({
     pricingCardAssetId: z.string().nullable(),
     prosConsAssetId: z.string().nullable(),
     badgeAssetId: z.string().nullable(),
+    framedScreenshotIds: z.array(z.string()).default([]),
   }),
   async run(ctx, input) {
     const article = await getArticle(ctx.db, input.articleId);
     const version = await getCurrentVersion(ctx.db, input.articleId);
-    if (!article?.productId || !version) throw new Error("Article or version not found");
+    if (!article || !version) throw new Error("Article or version not found");
     if (!ctx.storage) {
       ctx.log("no storage configured; skipping graphics");
-      return { output: { ogAssetId: null, pricingCardAssetId: null, prosConsAssetId: null, badgeAssetId: null } };
+      return {
+        output: {
+          ogAssetId: null,
+          pricingCardAssetId: null,
+          prosConsAssetId: null,
+          badgeAssetId: null,
+          framedScreenshotIds: [],
+        },
+      };
     }
     const storage = ctx.storage;
-    const product = await getProduct(ctx.db, article.productId);
+    // Comparisons and lists (FR-CON-8) get only an OG image; product cards belong to reviews.
+    if (article.type !== "review" || !article.productId) {
+      const [listCategory] = article.categoryId
+        ? await ctx.db.select().from(categories).where(eq(categories.id, article.categoryId)).limit(1)
+        : [];
+      const og = await renderOgImage({ title: version.seo?.title ?? article.title, category: listCategory?.name });
+      const saved = await saveImageAsset(ctx.db, storage, {
+        bytes: og.png,
+        kind: "graphic",
+        origin: "templated",
+        prefix: `articles/${article.id}/graphics`,
+        role: "og",
+        alt: article.title,
+        articleId: article.id,
+        lossless: true,
+      });
+      if (version.seo) await setVersionQa(ctx.db, version.id, { seo: { ...version.seo, ogImageAssetId: saved.id } });
+      return {
+        output: {
+          ogAssetId: saved.id,
+          pricingCardAssetId: null,
+          prosConsAssetId: null,
+          badgeAssetId: null,
+          framedScreenshotIds: [],
+        },
+      };
+    }
+    const productId = article.productId;
+    const product = await getProduct(ctx.db, productId);
     const [category] = product?.categoryId
       ? await ctx.db.select().from(categories).where(eq(categories.id, product.categoryId)).limit(1)
       : [];
-    const sheet = await latestFactSheet(ctx.db, article.productId);
+    const sheet = await latestFactSheet(ctx.db, productId);
     const score = version.overallScore ?? undefined;
     const prefix = `articles/${article.id}/graphics`;
     const save = async (png: Buffer, role: string, alt: string) =>
@@ -40,7 +83,7 @@ export const graphicsStep = defineStep({
           prefix,
           role,
           alt,
-          productId: article.productId,
+          productId,
           articleId: article.id,
           lossless: true,
         })
@@ -80,7 +123,34 @@ export const graphicsStep = defineStep({
           )
         : null;
 
+    // Latest original per role; a failed frame never fails the step.
+    const shots = (await listMedia(ctx.db, { productId }))
+      .filter((m) => m.kind === "screenshot" && m.role && FRAMED_ROLES.includes(m.role))
+      .filter((m, i, all) => all.findIndex((x) => x.role === m.role) === i);
+    const host = (() => {
+      try {
+        return product ? new URL(product.websiteUrl).hostname.replace(/^www\./, "") : null;
+      } catch {
+        return null;
+      }
+    })();
+    const framedScreenshotIds: string[] = [];
+    for (const shot of shots) {
+      try {
+        const framed = await saveProcessedScreenshot(
+          ctx.db,
+          storage,
+          shot,
+          { frame: "browser", host, maxWidth: 1600 },
+          { fetch: ctx.fetch },
+        );
+        framedScreenshotIds.push(framed.id);
+      } catch (error) {
+        ctx.log("screenshot frame failed", { role: shot.role, error: String(error) });
+      }
+    }
+
     if (version.seo) await setVersionQa(ctx.db, version.id, { seo: { ...version.seo, ogImageAssetId: ogAssetId } });
-    return { output: { ogAssetId, pricingCardAssetId, prosConsAssetId, badgeAssetId } };
+    return { output: { ogAssetId, pricingCardAssetId, prosConsAssetId, badgeAssetId, framedScreenshotIds } };
   },
 });

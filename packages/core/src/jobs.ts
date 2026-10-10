@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, jobSteps, products, reviewJobs, sql, type DbOrTx } from "@repo/db";
 import { DomainError } from "./errors";
+import { getSetting } from "./settings";
 
 type JobPreset = (typeof reviewJobs.preset.enumValues)[number];
 type JobStatus = (typeof reviewJobs.status.enumValues)[number];
@@ -10,6 +11,7 @@ export interface CreateJobInput {
   productId?: string | null;
   requestedByUserId?: string | null;
   costCeilingUsd?: number | null;
+  batchId?: string | null;
 }
 
 export async function createReviewJob(db: DbOrTx, input: CreateJobInput) {
@@ -21,6 +23,7 @@ export async function createReviewJob(db: DbOrTx, input: CreateJobInput) {
       productId: input.productId ?? null,
       requestedByUserId: input.requestedByUserId ?? null,
       costCeilingUsd: input.costCeilingUsd?.toFixed(6) ?? null,
+      batchId: input.batchId ?? null,
     })
     .returning();
   return job!;
@@ -210,4 +213,65 @@ export async function claimNextQueuedJob(db: DbOrTx) {
     )
     returning id`);
   return rows[0]?.id ?? null;
+}
+
+/** Effective cost ceiling for a job (FR-INT-6): its own, else the default from settings. */
+export async function jobCostStatus(db: DbOrTx, jobId: string) {
+  const [job] = await db
+    .select({ total: reviewJobs.totalCostUsd, ceiling: reviewJobs.costCeilingUsd })
+    .from(reviewJobs)
+    .where(eq(reviewJobs.id, jobId))
+    .limit(1);
+  if (!job) throw new DomainError("not_found", `Job ${jobId} not found`);
+  const ceiling =
+    job.ceiling !== null ? Number(job.ceiling) : ((await getSetting(db, "costs.defaultCeilingUsd")) ?? null);
+  const total = Number(job.total);
+  return { total, ceiling, exceeded: ceiling !== null && total >= ceiling };
+}
+
+/**
+ * Lets a job paused at its cost ceiling continue (FR-INT-6): raises the ceiling and re-queues it.
+ * The new ceiling must be above what the job has already spent.
+ */
+export async function approveJobOverCeiling(db: DbOrTx, jobId: string, newCeilingUsd: number) {
+  const { total } = await jobCostStatus(db, jobId);
+  if (!(newCeilingUsd > total)) {
+    throw new DomainError("invalid", `The new ceiling must be above the $${total.toFixed(2)} already spent`);
+  }
+  const [row] = await db
+    .update(reviewJobs)
+    .set({ costCeilingUsd: newCeilingUsd.toFixed(6), status: "queued", error: null, finishedAt: null, runId: null })
+    .where(and(eq(reviewJobs.id, jobId), eq(reviewJobs.status, "awaiting_approval")))
+    .returning();
+  if (!row) throw new DomainError("invalid", "Only jobs awaiting approval can be approved");
+  return row;
+}
+
+/** Jobs created by one bulk submission (FR-INT-2). */
+export async function listBatchJobs(db: DbOrTx, batchId: string) {
+  return db
+    .select({
+      id: reviewJobs.id,
+      status: reviewJobs.status,
+      input: reviewJobs.input,
+      productName: products.name,
+      totalCostUsd: reviewJobs.totalCostUsd,
+      error: reviewJobs.error,
+    })
+    .from(reviewJobs)
+    .leftJoin(products, eq(products.id, reviewJobs.productId))
+    .where(eq(reviewJobs.batchId, batchId))
+    .orderBy(reviewJobs.createdAt);
+}
+
+/** Whether a product already has a job waiting or running (refresh scheduler, bulk intake). */
+export async function hasActiveJob(db: DbOrTx, productId: string) {
+  const [row] = await db
+    .select({ id: reviewJobs.id })
+    .from(reviewJobs)
+    .where(
+      and(eq(reviewJobs.productId, productId), inArray(reviewJobs.status, ["queued", "running", "awaiting_approval"])),
+    )
+    .limit(1);
+  return !!row;
 }

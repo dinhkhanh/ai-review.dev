@@ -59,8 +59,12 @@ export const fixSchema = z.object({ blocks: z.array(z.object({ id: z.string(), l
 
 type Verdict = z.infer<typeof verdictSchema>["results"][number];
 
-/** Evidence per claim: best chunks from the cited sources, or product-wide for uncited claims. */
-export async function gatherEvidence(ctx: FactCheckDeps, productId: string, claims: ExtractedClaim[]) {
+/**
+ * Evidence per claim: best chunks from the cited sources, or product-wide for uncited claims. With
+ * several products (comparisons, lists) every product is searched and the best hits kept.
+ */
+export async function gatherEvidence(ctx: FactCheckDeps, productIds: string | string[], claims: ExtractedClaim[]) {
+  const ids = Array.isArray(productIds) ? productIds : [productIds];
   const vectors = ctx.embedder
     ? await ctx.embedder
         .embed(
@@ -72,12 +76,18 @@ export async function gatherEvidence(ctx: FactCheckDeps, productId: string, clai
   const evidence = new Map<string, ChunkHit[]>();
   for (let i = 0; i < claims.length; i++) {
     const c = claims[i]!;
-    const hits = await searchChunks(ctx.db, productId, {
-      query: c.text,
-      embedding: vectors?.[i] ?? null,
-      limit: c.sourceIds.length ? 3 : 2,
-      ...(c.sourceIds.length ? { sourceIds: c.sourceIds } : {}),
-    });
+    const limit = c.sourceIds.length ? 3 : 2;
+    const perProduct = await Promise.all(
+      ids.map((productId) =>
+        searchChunks(ctx.db, productId, {
+          query: c.text,
+          embedding: vectors?.[i] ?? null,
+          limit,
+          ...(c.sourceIds.length ? { sourceIds: c.sourceIds } : {}),
+        }),
+      ),
+    );
+    const hits = ids.length === 1 ? perProduct[0]! : perProduct.flat().slice(0, limit * 2);
     evidence.set(c.id, hits);
   }
   return evidence;

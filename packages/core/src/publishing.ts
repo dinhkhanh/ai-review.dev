@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { articles, authors, categories, eq, products, type DbOrTx } from "@repo/db";
+import { ARTICLE_ROUTE_PREFIX, articlePath } from "@repo/content";
+import { articles, authors, categories, eq, products, sql, type DbOrTx } from "@repo/db";
 import { dueScheduledArticles, publishArticle } from "./articles";
 
 export interface PublishEnv {
@@ -32,15 +33,15 @@ export async function pathsForArticle(db: DbOrTx, articleId: string): Promise<st
     .select({ slug: articles.slug, type: articles.type, category: categories.slug, author: authors.slug })
     .from(articles)
     .leftJoin(products, eq(products.id, articles.productId))
-    .leftJoin(categories, eq(categories.id, products.categoryId))
+    .leftJoin(categories, sql`${categories.id} = coalesce(${articles.categoryId}, ${products.categoryId})`)
     .leftJoin(authors, eq(authors.id, articles.authorId))
     .where(eq(articles.id, articleId))
     .limit(1);
   if (!row) return ["/"];
   return [
-    `/reviews/${row.slug}`,
+    articlePath(row.type, row.slug),
     "/",
-    "/reviews",
+    row.type === "review" ? "/reviews" : ARTICLE_ROUTE_PREFIX[row.type],
     ...(row.category ? [`/categories/${row.category}`] : []),
     ...(row.author ? [`/authors/${row.author}`] : []),
     "/sitemap.xml",

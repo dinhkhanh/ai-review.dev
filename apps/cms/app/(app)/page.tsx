@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     { label: "Awaiting review", value: stats.articlesAwaitingReview, href: "/articles" },
     { label: "Published", value: stats.articlesPublished, href: "/articles?view=published" },
     { label: "Clicks today", value: stats.clicksToday, href: "/affiliate?view=clicks" },
-    { label: "Revenue (30 days)", value: usd.format(stats.revenue30dUsd), href: "/affiliate" },
+    { label: "Revenue (30 days)", value: usd.format(stats.revenue30dUsd), href: "/analytics" },
     { label: "AI spend this month", value: usd.format(stats.spendThisMonthUsd), href: "/jobs" },
     { label: "Open visitor reports", value: reports.length, warn: reports.length > 0, href: "/reports" },
   ];

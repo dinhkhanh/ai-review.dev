@@ -49,12 +49,18 @@ export const reviewJobs = pgTable(
     runId: text("run_id"),
     /** The article this job produced or refreshed. */
     articleId: uuid("article_id"),
+    /** Groups jobs created by one bulk submission (FR-INT-2). */
+    batchId: uuid("batch_id"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     error: text("error"),
     ...timestamps(),
   },
-  (t) => [index("review_jobs_status_idx").on(t.status), index("review_jobs_product_idx").on(t.productId)],
+  (t) => [
+    index("review_jobs_status_idx").on(t.status),
+    index("review_jobs_product_idx").on(t.productId),
+    index("review_jobs_batch_idx").on(t.batchId),
+  ],
 );
 
 export const jobSteps = pgTable(
@@ -147,4 +153,23 @@ export const productSuggestions = pgTable(
     uniqueIndex("product_suggestions_domain_uq").on(t.domain),
     index("product_suggestions_status_score_idx").on(t.status, t.score),
   ],
+);
+
+/** Prompt eval runs on the golden set (docs/plan.md §5 "Evals"). */
+export const evalRuns = pgTable(
+  "eval_runs",
+  {
+    id: id(),
+    suite: text("suite").notNull(),
+    /** Prompt versions under test, e.g. { write: "repo:v3", fact_check: "db:5" }. */
+    promptVersions: jsonb("prompt_versions").$type<Record<string, string>>().notNull().default({}),
+    status: text("status").notNull().default("running"),
+    /** Per-case results: [{ case, passed, score, checks: [...] }]. */
+    results: jsonb("results").$type<Array<Record<string, unknown>>>().notNull().default([]),
+    summary: jsonb("summary").$type<Record<string, unknown>>(),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [index("eval_runs_suite_idx").on(t.suite, t.startedAt)],
 );

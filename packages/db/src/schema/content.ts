@@ -1,4 +1,13 @@
-import type { ArticleBody, FactCheckReport, QaScorecard, Seo, SeoBrief } from "@repo/content";
+import type {
+  ArticleBody,
+  FactCheckReport,
+  QaScorecard,
+  Seo,
+  SeoBrief,
+  SocialSnippets,
+  VideoScript,
+} from "@repo/content";
+import { sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -14,7 +23,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { DEFAULT_LOCALE, id, timestamps } from "./_shared";
-import { products } from "./catalog";
+import { categories, products } from "./catalog";
 
 export const articleType = pgEnum("article_type", ["review", "comparison", "alternatives", "best_of"]);
 /** Review state machine (FR-QA-2). */
@@ -34,6 +43,7 @@ export const videoStatus = pgEnum("video_status", ["draft", "rendering", "ready"
 export const mediaStorage = pgEnum("media_storage", ["r2", "db"]);
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const authors = pgTable("authors", {
   id: id(),
@@ -68,12 +78,22 @@ export const articles = pgTable(
     lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
     /** SEO brief the article was written from (FR-CON-1); reused when regenerating sections. */
     brief: jsonb("brief").$type<SeoBrief>(),
+    /** Category for multi-product articles (best-of, alternatives); reviews use the product's. */
+    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    /** Short social posts with the go-link (FR-CON-8), regenerated with the article. */
+    social: jsonb("social").$type<SocialSnippets>(),
+    /** Plain text of the published version for site search (FR-WEB-7); set on publish. */
+    searchText: text("search_text"),
+    searchTsv: tsvector("search_tsv").generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce("title", '')), 'A') || setweight(to_tsvector('english', coalesce("search_text", '')), 'B')`,
+    ),
     ...timestamps(),
   },
   (t) => [
     uniqueIndex("articles_type_slug_locale_uq").on(t.type, t.slug, t.locale),
     index("articles_status_idx").on(t.status),
     index("articles_product_idx").on(t.productId),
+    index("articles_search_tsv_idx").using("gin", t.searchTsv),
   ],
 );
 
@@ -124,6 +144,8 @@ export const mediaAssets = pgTable(
     articleId: uuid("article_id"),
     /** Free-form role, e.g. "og", "pricing_card", "screenshot:pricing:mobile". */
     role: text("role"),
+    /** Processed assets (framed/annotated screenshots, FR-MED-3) point at their original. */
+    parentAssetId: uuid("parent_asset_id"),
     capturedAt: timestamp("captured_at", { withTimezone: true }),
     ...timestamps(),
   },
@@ -156,18 +178,29 @@ export const articleComments = pgTable(
   (t) => [index("article_comments_article_idx").on(t.articleId)],
 );
 
-export const videos = pgTable("videos", {
-  id: id(),
-  articleId: uuid("article_id")
-    .notNull()
-    .references(() => articles.id, { onDelete: "cascade" }),
-  kind: videoKind("kind").notNull(),
-  status: videoStatus("status").notNull().default("draft"),
-  script: jsonb("script").$type<Record<string, unknown>>(),
-  audioAssetId: uuid("audio_asset_id"),
-  videoAssetId: uuid("video_asset_id"),
-  thumbnailAssetId: uuid("thumbnail_asset_id"),
-  youtubeId: text("youtube_id"),
-  durationSeconds: integer("duration_seconds"),
-  ...timestamps(),
-});
+/** One short (9:16) and one long (16:9) video per article (FR-VID-1..5); regenerating replaces assets. */
+export const videos = pgTable(
+  "videos",
+  {
+    id: id(),
+    articleId: uuid("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade" }),
+    kind: videoKind("kind").notNull(),
+    status: videoStatus("status").notNull().default("draft"),
+    script: jsonb("script").$type<VideoScript>(),
+    /** TTS voice used for the voice-over (FR-VID-2). */
+    voiceId: text("voice_id"),
+    /** Word-level timings from TTS, used for captions: [{ word, startMs, endMs }]. */
+    captions: jsonb("captions").$type<Array<{ word: string; startMs: number; endMs: number }>>(),
+    audioAssetId: uuid("audio_asset_id"),
+    videoAssetId: uuid("video_asset_id"),
+    thumbnailAssetId: uuid("thumbnail_asset_id"),
+    youtubeId: text("youtube_id"),
+    durationSeconds: integer("duration_seconds"),
+    error: text("error"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("videos_article_kind_uq").on(t.articleId, t.kind)],
+);

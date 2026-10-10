@@ -34,7 +34,26 @@
         "VERCEL",
         "NEXT_PUBLIC_PLAUSIBLE_DOMAIN",
         "INDEXNOW_KEY",
-        "FIRECRAWL_RPM"
+        "FIRECRAWL_RPM",
+        "RESEND_API_KEY",
+        "NOTIFY_EMAIL_FROM",
+        "NOTIFY_WEBHOOK_URL",
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_CHAT_ID",
+        "TURNSTILE_SECRET_KEY",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+        "PLAUSIBLE_API_KEY",
+        "IMPACT_ACCOUNT_SID",
+        "IMPACT_AUTH_TOKEN",
+        "PARTNERSTACK_API_KEY",
+        "AWIN_API_TOKEN",
+        "AWIN_PUBLISHER_ID",
+        "ELEVENLABS_API_KEY",
+        "YOUTUBE_CLIENT_ID",
+        "YOUTUBE_CLIENT_SECRET",
+        "YOUTUBE_REFRESH_TOKEN",
+        "FAL_KEY",
+        "PRODUCT_HUNT_TOKEN"
       ]
     },
     "lint": {

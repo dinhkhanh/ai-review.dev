@@ -232,3 +232,18 @@ export async function leadingChunks(db: DbOrTx, sourceIds: string[], perSource =
     .where(and(inArray(researchChunks.sourceId, sourceIds), sql`${researchChunks.ord} < ${perSource}`))
     .orderBy(asc(researchChunks.sourceId), asc(researchChunks.ord));
 }
+
+/** Products an article is about: `productIds` for comparisons and lists, else its single product. */
+export function articleProductIds(article: { productId: string | null; productIds: string[] }): string[] {
+  if (article.productIds.length) return article.productIds;
+  return article.productId ? [article.productId] : [];
+}
+
+/**
+ * Sources of several products in a stable order (product order, then creation), so `S<n>` refs
+ * stay identical across the write, fact-check and style steps of a multi-product article.
+ */
+export async function listSourcesForProducts(db: DbOrTx, productIds: string[], opts: { withContent?: boolean } = {}) {
+  const lists = await Promise.all(productIds.map((id) => listSources(db, id, opts)));
+  return lists.flat();
+}

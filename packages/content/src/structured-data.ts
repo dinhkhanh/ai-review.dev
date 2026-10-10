@@ -19,6 +19,39 @@ export interface ReviewStructuredDataInput {
   factSheet?: FactSheet | null;
   blocks: ArticleBody;
   breadcrumbs: Array<{ name: string; url: string }>;
+  /** Uploaded review videos (FR-VID-4) → VideoObject. */
+  videos?: StructuredVideo[];
+}
+
+export interface StructuredVideo {
+  name: string;
+  description: string;
+  thumbnailUrl: string;
+  uploadDate: Date;
+  embedUrl: string;
+  watchUrl: string;
+  durationSeconds: number | null;
+}
+
+/** One VideoObject per uploaded video (FR-CON-9); also usable on its own next to other JSON-LD. */
+export function buildVideoStructuredData(videos: StructuredVideo[]): JsonLd[] {
+  return videos.map((v) => ({
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    name: v.name,
+    description: v.description,
+    thumbnailUrl: [v.thumbnailUrl],
+    uploadDate: v.uploadDate.toISOString(),
+    embedUrl: v.embedUrl,
+    url: v.watchUrl,
+    ...(v.durationSeconds ? { duration: isoDuration(v.durationSeconds) } : {}),
+  }));
+}
+
+/** ISO 8601 duration, e.g. 95 s → "PT1M35S". */
+export function isoDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `PT${Math.floor(s / 60) ? `${Math.floor(s / 60)}M` : ""}${s % 60 || !Math.floor(s / 60) ? `${s % 60}S` : ""}`;
 }
 
 type JsonLd = Record<string, unknown>;
@@ -75,6 +108,8 @@ export function buildReviewStructuredData(input: ReviewStructuredDataInput): Jso
     });
   }
 
+  out.push(...buildVideoStructuredData(input.videos ?? []));
+
   out.push({
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -115,6 +150,15 @@ export function validateStructuredData(objects: JsonLd[]): string[] {
     for (const q of items) {
       if (!q.name || !(q.acceptedAnswer as JsonLd | undefined)?.text) problems.push("FAQ question without an answer");
     }
+  }
+  for (const video of objects.filter((o) => o["@type"] === "VideoObject")) {
+    if (
+      !video.name ||
+      !video.description ||
+      !video.uploadDate ||
+      !(video.thumbnailUrl as unknown[] | undefined)?.length
+    )
+      problems.push("VideoObject needs name, description, thumbnailUrl and uploadDate");
   }
   const crumbs = objects.find((o) => o["@type"] === "BreadcrumbList");
   if (!crumbs || (crumbs.itemListElement as unknown[]).length === 0) problems.push("BreadcrumbList is missing");

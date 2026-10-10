@@ -1,6 +1,7 @@
 import { createErrorReport, getArticleIdBySlug } from "@repo/core";
 import { getDb } from "@repo/db";
 import type { NextRequest } from "next/server";
+import { guardForm } from "../../../lib/visitor";
 
 /**
  * "Report a change" (FR-WEB-6): plain HTML form post, no JavaScript needed. A honeypot field and
@@ -13,6 +14,11 @@ export async function POST(request: NextRequest) {
   const message = String(form.get("message") ?? "");
   const email = String(form.get("email") ?? "") || null;
   const kind = String(form.get("kind") ?? "pricing");
+  // Rate limit + Turnstile (FR-API-3, NFR-7).
+  const guard = await guardForm(request, form, "report");
+  if (!guard.ok) {
+    return Response.redirect(new URL(`/report?article=${encodeURIComponent(articleSlug)}&error=1`, request.url), 303);
+  }
   try {
     const db = getDb();
     await createErrorReport(db, {

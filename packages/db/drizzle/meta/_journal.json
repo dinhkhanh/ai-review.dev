@@ -36,6 +36,13 @@
       "when": 1791643479421,
       "tag": "0004_published_version",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791650435991,
+      "tag": "0005_phase2_foundation",
+      "breakpoints": true
     }
   ]
 }

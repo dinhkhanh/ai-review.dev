@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AI Review API",
-    "version": "1.1.0",
+    "version": "1.3.0",
     "description": "Public read API for ai-review.dev web and mobile clients."
   },
   "servers": [
@@ -395,6 +395,13 @@
               },
               "required": ["name", "reviewSlug", "note"]
             }
+          },
+          "videos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Video"
+            },
+            "description": "Video reviews on YouTube; empty when none"
           }
         },
         "required": [
@@ -413,7 +420,8 @@
           "media",
           "sources",
           "links",
-          "competitors"
+          "competitors",
+          "videos"
         ]
       },
       "ArticleBody": {
@@ -1291,6 +1299,294 @@
         },
         "required": ["id", "url", "title", "kind", "fetchedAt"]
       },
+      "Video": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["short", "long"],
+            "description": "short = vertical 9:16, long = 16:9"
+          },
+          "youtubeId": {
+            "type": "string"
+          },
+          "title": {
+            "type": ["string", "null"]
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
+          "durationSeconds": {
+            "type": ["integer", "null"]
+          },
+          "uploadedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "embedUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "watchUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "kind",
+          "youtubeId",
+          "title",
+          "description",
+          "durationSeconds",
+          "uploadedAt",
+          "embedUrl",
+          "watchUrl",
+          "thumbnailUrl"
+        ]
+      },
+      "GuideList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideSummary"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        },
+        "required": ["data", "pagination"]
+      },
+      "GuideSummary": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/GuideType"
+          },
+          "slug": {
+            "type": "string",
+            "example": "notion-vs-coda"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
+          "publishedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastVerifiedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "productCount": {
+            "type": "integer"
+          },
+          "category": {
+            "type": ["object", "null"],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["slug", "name"]
+          },
+          "image": {
+            "$ref": "#/components/schemas/Image"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "type",
+          "slug",
+          "title",
+          "description",
+          "publishedAt",
+          "updatedAt",
+          "lastVerifiedAt",
+          "productCount",
+          "category",
+          "image",
+          "url"
+        ]
+      },
+      "GuideType": {
+        "type": "string",
+        "enum": ["comparison", "alternatives", "best_of"]
+      },
+      "GuideDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/GuideType"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "seo": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": ["string", "null"]
+              },
+              "canonicalUrl": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": ["title", "description", "canonicalUrl"]
+          },
+          "publishedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastVerifiedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "aiDisclosure": {
+            "type": ["string", "null"]
+          },
+          "author": {
+            "type": ["object", "null"],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["slug", "name"]
+          },
+          "category": {
+            "type": ["object", "null"],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["slug", "name"]
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "tagline": {
+                  "type": ["string", "null"]
+                },
+                "websiteUrl": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "reviewSlug": {
+                  "type": ["string", "null"]
+                },
+                "score": {
+                  "type": ["number", "null"]
+                },
+                "go": {
+                  "type": ["string", "null"],
+                  "description": "Go-link slug for this product's CTAs"
+                },
+                "discontinued": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["id", "slug", "name", "tagline", "websiteUrl", "reviewSlug", "score", "go", "discontinued"]
+            },
+            "description": "Products in article order; comparison_table productIds reference `id`"
+          },
+          "blocks": {
+            "$ref": "#/components/schemas/ArticleBody"
+          },
+          "media": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Image"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            }
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "goBaseUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "web": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": ["goBaseUrl", "web"]
+          }
+        },
+        "required": [
+          "type",
+          "slug",
+          "title",
+          "seo",
+          "publishedAt",
+          "updatedAt",
+          "lastVerifiedAt",
+          "aiDisclosure",
+          "author",
+          "category",
+          "products",
+          "blocks",
+          "media",
+          "sources",
+          "links"
+        ]
+      },
       "ProductList": {
         "type": "object",
         "properties": {
@@ -1402,6 +1698,220 @@
           }
         },
         "required": ["name", "price", "currency", "period", "highlights"]
+      },
+      "SearchResultList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        },
+        "required": ["data", "pagination"]
+      },
+      "SearchResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ReviewSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "$ref": "#/components/schemas/ArticleType"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Canonical web URL of the article"
+              }
+            },
+            "required": ["type", "url"]
+          }
+        ]
+      },
+      "ArticleType": {
+        "type": "string",
+        "enum": ["review", "comparison", "alternatives", "best_of"],
+        "description": "Web paths: /reviews, /compare, /alternatives, /best + /{slug}"
+      },
+      "DealList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Deal"
+            }
+          }
+        },
+        "required": ["data"]
+      },
+      "Deal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
+          "code": {
+            "type": ["string", "null"],
+            "description": "Promo code, if the deal needs one"
+          },
+          "discountText": {
+            "type": ["string", "null"],
+            "example": "30% off first year"
+          },
+          "endsAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "product": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "logo": {
+                "$ref": "#/components/schemas/Image"
+              }
+            },
+            "required": ["slug", "name", "logo"]
+          },
+          "category": {
+            "type": ["object", "null"],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["slug", "name"]
+          },
+          "reviewSlug": {
+            "type": "string"
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "go": {
+                "type": ["string", "null"],
+                "description": "Go-link slug; open `${webUrl}/go/{slug}?p=deals`"
+              },
+              "web": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": ["go", "web"]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "code",
+          "discountText",
+          "endsAt",
+          "product",
+          "category",
+          "reviewSlug",
+          "links"
+        ]
+      },
+      "AcceptedResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["accepted"]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["status", "message"]
+      },
+      "VoteRequest": {
+        "type": "object",
+        "properties": {
+          "helpful": {
+            "type": "boolean"
+          },
+          "turnstileToken": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Cloudflare Turnstile token; required when the server has Turnstile enabled"
+          }
+        },
+        "required": ["helpful"]
+      },
+      "ReportRequest": {
+        "type": "object",
+        "properties": {
+          "article": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Review slug the report is about"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["pricing", "error", "other"],
+            "default": "other"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 2000
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 200,
+            "format": "email"
+          },
+          "turnstileToken": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Cloudflare Turnstile token; required when the server has Turnstile enabled"
+          }
+        },
+        "required": ["message"]
+      },
+      "NewsletterRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 200,
+            "format": "email"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "turnstileToken": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Cloudflare Turnstile token; required when the server has Turnstile enabled"
+          }
+        },
+        "required": ["email"]
       }
     },
     "parameters": {}
@@ -1592,6 +2102,111 @@
         }
       }
     },
+    "/v1/guides": {
+      "get": {
+        "tags": ["guides"],
+        "summary": "List published comparisons, alternatives lists and best-of lists",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/GuideType"
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "productivity"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 24
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Guides, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/guides/{type}/{slug}": {
+      "get": {
+        "tags": ["guides"],
+        "summary": "Get a published comparison or list with its content blocks",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/GuideType"
+            },
+            "required": true,
+            "name": "type",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "notion-vs-coda"
+            },
+            "required": true,
+            "name": "slug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The guide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/products": {
       "get": {
         "tags": ["products"],
@@ -1661,6 +2276,300 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "tags": ["search"],
+        "summary": "Full-text search across published reviews, comparisons and lists",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "example": "website analytics"
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "ai-tools"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ArticleType"
+            },
+            "required": false,
+            "description": "Web paths: /reviews, /compare, /alternatives, /best + /{slug}",
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Best matches first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResultList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/deals": {
+      "get": {
+        "tags": ["deals"],
+        "summary": "Active deals, promo codes and trials for reviewed products",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ai-tools"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active deals by category",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DealList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reviews/{slug}/vote": {
+      "post": {
+        "tags": ["visitors"],
+        "summary": "Was this review helpful? One vote per visitor per day; voting again changes it",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "required": true,
+            "name": "slug",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Turnstile check failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Review not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reports": {
+      "post": {
+        "tags": ["visitors"],
+        "summary": "Report a pricing change or an error in a review",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Turnstile check failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/newsletter": {
+      "post": {
+        "tags": ["visitors"],
+        "summary": "Subscribe to the newsletter (double opt-in: a confirmation email is sent)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewsletterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Turnstile check failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
             "content": {
               "application/json": {
                 "schema": {

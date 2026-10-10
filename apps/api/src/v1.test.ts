@@ -4,10 +4,12 @@ import {
   createArticle,
   ensureGoSlug,
   findOrCreateProduct,
+  getArticleIdBySlug,
   publishArticle,
   saveFactSheet,
   transitionArticle,
   upsertSource,
+  upsertVideo,
 } from "@repo/core";
 import { factSheetSchema } from "@repo/content";
 import { categories, eq } from "@repo/db";
@@ -110,6 +112,22 @@ describe("api v1 content", () => {
     expect((await app.request("/v1/reviews/coda-review")).status).toBe(404);
   });
 
+  it("lists only uploaded videos on a review (FR-VID-4)", async () => {
+    const articleId = (await getArticleIdBySlug(ctx.db, "notion-review"))!;
+    await upsertVideo(ctx.db, articleId, "long", { status: "ready" });
+    let body = (await (await app.request("/v1/reviews/notion-review")).json()) as Record<string, any>;
+    expect(body.videos).toEqual([]);
+    await upsertVideo(ctx.db, articleId, "short", { status: "published", youtubeId: "abc123", durationSeconds: 90 });
+    body = (await (await app.request("/v1/reviews/notion-review")).json()) as Record<string, any>;
+    expect(body.videos).toEqual([
+      expect.objectContaining({
+        kind: "short",
+        youtubeId: "abc123",
+        watchUrl: "https://www.youtube.com/shorts/abc123",
+      }),
+    ]);
+  });
+
   it("serves products with verified pricing and category details", async () => {
     const list = (await (await app.request("/v1/products")).json()) as { data: Array<{ slug: string }> };
     expect(list.data.map((p) => p.slug)).toEqual(["notion"]);
@@ -120,6 +138,57 @@ describe("api v1 content", () => {
     const cat = (await (await app.request("/v1/categories/productivity")).json()) as { reviews: unknown[] };
     expect(cat.reviews).toHaveLength(1);
     expect((await app.request("/v1/categories/nope")).status).toBe(404);
+  });
+
+  it("lists and serves published comparisons with their products (FR-CON-8)", async () => {
+    const notion = (await findOrCreateProduct(ctx.db, { name: "Notion", websiteUrl: "notion.so" })).product;
+    const coda = (await findOrCreateProduct(ctx.db, { name: "Coda", websiteUrl: "coda.io" })).product;
+    await ensureGoSlug(ctx.db, coda);
+    const g = await createArticle(ctx.db, {
+      type: "comparison",
+      productId: null,
+      productIds: [notion.id, coda.id],
+      title: "Notion vs Coda",
+      slug: "notion-vs-coda",
+    });
+    await addArticleVersion(ctx.db, g.id, {
+      blocks: [
+        {
+          id: "t",
+          type: "comparison_table",
+          productIds: [notion.id, coda.id],
+          rows: [{ label: "Free", values: ["Yes", "Yes"] }],
+        },
+        { id: "c1", type: "cta", goSlug: "notion", placement: "pick_1", label: "Visit Notion" },
+      ],
+      seo: {
+        title: "Notion vs Coda",
+        metaDescription: "Compared",
+        primaryKeyword: "notion vs coda",
+        secondaryKeywords: [],
+        intent: "comparison",
+        internalLinks: [],
+      },
+      qaScorecard: { hardGatesPassed: true, checks: [], computedAt: new Date().toISOString() },
+    });
+    await transitionArticle(ctx.db, g.id, "in_review");
+    await transitionArticle(ctx.db, g.id, "approved");
+    await publishArticle(ctx.db, g.id, { ignoreCap: true });
+
+    const list = (await (await app.request("/v1/guides?type=comparison")).json()) as {
+      data: Array<Record<string, any>>;
+    };
+    expect(list.data.map((x) => [x.slug, x.productCount, x.url])).toEqual([
+      ["notion-vs-coda", 2, "http://localhost:3000/compare/notion-vs-coda"],
+    ]);
+    const res = await app.request("/v1/guides/comparison/notion-vs-coda");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, any>;
+    expect(body.products.map((p: { name: string; reviewSlug: string | null }) => [p.name, p.reviewSlug])).toEqual([
+      ["Notion", "notion-review"],
+      ["Coda", null],
+    ]);
+    expect((await app.request("/v1/guides/best_of/notion-vs-coda")).status).toBe(404);
   });
 
   it("validates query parameters", async () => {

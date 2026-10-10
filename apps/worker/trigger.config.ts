@@ -1,4 +1,4 @@
-import { additionalPackages, syncEnvVars } from "@trigger.dev/build/extensions/core";
+import { additionalFiles, additionalPackages, aptGet, syncEnvVars } from "@trigger.dev/build/extensions/core";
 import { defineConfig } from "@trigger.dev/sdk";
 import { readFileSync } from "node:fs";
 
@@ -46,11 +46,45 @@ export default defineConfig({
   runtime: "node",
   build: {
     // Native and file-reading packages stay out of the bundle (installed in the deploy image).
-    external: ["sharp", "@resvg/resvg-js", "@fontsource/inter"],
+    external: [
+      "sharp",
+      "@resvg/resvg-js",
+      "@fontsource/inter",
+      // Remotion (FR-VID-3): native compositor + headless Chrome; never bundled by esbuild.
+      "remotion",
+      "@remotion/renderer",
+      "@remotion/bundler",
+    ],
     extensions: [
       // @repo/graphics reads the font files via createRequire().resolve, which esbuild can't see,
       // so the external is never added to the image's package.json unless we install it explicitly.
       additionalPackages({ packages: ["@fontsource/inter@5.3.0"] }),
+      // Video rendering (FR-VID-3, docs/deploy.md "Video"): the renderer is imported dynamically,
+      // so install it explicitly; it brings its own ffmpeg (compositor) for linux-x64.
+      additionalPackages({ packages: ["remotion@4.0.526", "@remotion/renderer@4.0.526"] }),
+      // The Remotion bundle is prebuilt by `pnpm --filter @repo/video bundle` (run by `deploy`)
+      // and lands at packages/video/build in the image, where @repo/video/render looks for it.
+      additionalFiles({ files: ["../../packages/video/build/**"] }),
+      // Shared libraries Chrome Headless Shell needs on Debian (downloaded on first render).
+      aptGet({
+        packages: [
+          "libnss3",
+          "libdbus-1-3",
+          "libatk1.0-0",
+          "libgbm-dev",
+          "libasound2",
+          "libxrandr2",
+          "libxkbcommon-dev",
+          "libxfixes3",
+          "libxcomposite1",
+          "libxdamage1",
+          "libatk-bridge2.0-0",
+          "libpango-1.0-0",
+          "libcairo2",
+          "libcups2",
+          "fonts-noto-color-emoji",
+        ],
+      }),
       syncEnvVars(async (ctx) => (["prod", "production"].includes(ctx.environment) ? productionEnv() : [])),
     ],
   },

@@ -1,0 +1,224 @@
+{
+  "$comment": "Golden products for prompt evals (docs/plan.md §5). Expectations are only what a cited public page states; each carries its source and check date. `snapshot` names evals/snapshots/<slug>.json (exported from a researched product with `pnpm --filter @repo/pipeline eval:snapshot -- <slug>`); null = not researched yet, so the runner skips the case. Rubric ranges are editorial sanity bands (catching broken scoring), not ground truth.",
+  "cases": [
+    {
+      "slug": "plausible-analytics",
+      "name": "Plausible Analytics",
+      "url": "https://plausible.io",
+      "category": "marketing",
+      "snapshot": "plausible-analytics",
+      "expect": {
+        "source": {
+          "url": "https://plausible.io",
+          "checkedAt": "2026-10-10",
+          "note": "Pricing section of the homepage as crawled (source text in the snapshot)."
+        },
+        "tiers": ["Starter", "Growth", "Business", "Enterprise"],
+        "prices": [
+          { "tier": "Starter", "price": 9, "period": "month", "tolerance": 0 },
+          { "tier": "Growth", "price": 14, "period": "month", "tolerance": 0 },
+          { "tier": "Business", "price": 19, "period": "month", "tolerance": 0 }
+        ],
+        "freePlan": null,
+        "trialDays": 30,
+        "features": ["cookie", "goal", "funnel", "api", "import"],
+        "rubricOverall": [6, 9.5]
+      }
+    },
+    {
+      "slug": "fathom-analytics",
+      "name": "Fathom Analytics",
+      "url": "https://usefathom.com",
+      "category": "marketing",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://usefathom.com/pricing",
+          "checkedAt": "2026-10-10",
+          "note": "\"plans from $15/month\", \"starts with a 7-day free trial\"; tiers are pageview bands without names."
+        },
+        "tiers": [],
+        "prices": [{ "tier": null, "price": 15, "period": "month", "tolerance": 0 }],
+        "freePlan": null,
+        "trialDays": 7,
+        "features": [],
+        "rubricOverall": [5, 9.5]
+      }
+    },
+    {
+      "slug": "umami",
+      "name": "Umami",
+      "url": "https://umami.is",
+      "category": "marketing",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://umami.is/pricing",
+          "checkedAt": "2026-10-10",
+          "note": "Hobby $0/month, Pro $20/month, Business $200/month, 14-day free trial on paid plans."
+        },
+        "tiers": ["Hobby", "Pro", "Business"],
+        "prices": [
+          { "tier": "Hobby", "price": 0, "period": "month", "tolerance": 0 },
+          { "tier": "Pro", "price": 20, "period": "month", "tolerance": 0 },
+          { "tier": "Business", "price": 200, "period": "month", "tolerance": 0 }
+        ],
+        "freePlan": true,
+        "trialDays": 14,
+        "features": [],
+        "rubricOverall": [5, 9.5]
+      }
+    },
+    {
+      "slug": "simple-analytics",
+      "name": "Simple Analytics",
+      "url": "https://www.simpleanalytics.com",
+      "category": "marketing",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://www.simpleanalytics.com/pricing",
+          "checkedAt": "2026-10-10",
+          "note": "\"$20 /month\" entry plan, \"Free for hobby sites\", \"14-day self-serve trial\"."
+        },
+        "tiers": [],
+        "prices": [{ "tier": null, "price": 20, "period": "month", "tolerance": 0 }],
+        "freePlan": true,
+        "trialDays": 14,
+        "features": [],
+        "rubricOverall": [5, 9.5]
+      }
+    },
+    {
+      "slug": "pirsch-analytics",
+      "name": "Pirsch Analytics",
+      "url": "https://pirsch.io",
+      "category": "marketing",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://pirsch.io/pricing",
+          "checkedAt": "2026-10-10",
+          "note": "\"free 30-day trial\", \"Starting at only $6 per month for 10,000 monthly page views\"."
+        },
+        "tiers": [],
+        "prices": [{ "tier": null, "price": 6, "period": "month", "tolerance": 0 }],
+        "freePlan": null,
+        "trialDays": 30,
+        "features": [],
+        "rubricOverall": [5, 9.5]
+      }
+    },
+    {
+      "slug": "posthog",
+      "name": "PostHog",
+      "url": "https://posthog.com",
+      "category": "marketing",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://posthog.com/pricing",
+          "checkedAt": "2026-10-10",
+          "note": "Usage-based with a monthly free tier (1M analytics events, 5K session recordings, 1M feature-flag requests)."
+        },
+        "tiers": [],
+        "prices": [],
+        "freePlan": true,
+        "trialDays": null,
+        "features": ["session replay", "feature flag", "experiment", "survey"],
+        "rubricOverall": [5, 9.5]
+      }
+    },
+    {
+      "slug": "linear",
+      "name": "Linear",
+      "url": "https://linear.app",
+      "category": "developer-tools",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://linear.app/pricing",
+          "checkedAt": "2026-10-10",
+          "note": "Free $0; Basic $10 and Business $16 per user/month billed yearly; Enterprise."
+        },
+        "tiers": ["Free", "Basic", "Business", "Enterprise"],
+        "prices": [
+          { "tier": "Free", "price": 0, "period": "month", "tolerance": 0 },
+          { "tier": "Basic", "price": 10, "period": "month", "tolerance": 2 },
+          { "tier": "Business", "price": 16, "period": "month", "tolerance": 3 }
+        ],
+        "freePlan": true,
+        "trialDays": null,
+        "features": [],
+        "rubricOverall": [5, 9.5]
+      }
+    },
+    {
+      "slug": "notion",
+      "name": "Notion",
+      "url": "https://www.notion.com",
+      "category": "productivity",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://www.notion.com/pricing",
+          "checkedAt": "2026-10-10",
+          "note": "Free $0; Plus $10 and Business $20 per seat/month (yearly prices); Enterprise on request."
+        },
+        "tiers": ["Free", "Plus", "Business", "Enterprise"],
+        "prices": [
+          { "tier": "Free", "price": 0, "period": "month", "tolerance": 0 },
+          { "tier": "Plus", "price": 10, "period": "month", "tolerance": 2 },
+          { "tier": "Business", "price": 20, "period": "month", "tolerance": 4 }
+        ],
+        "freePlan": true,
+        "trialDays": null,
+        "features": [],
+        "rubricOverall": [5, 9.5]
+      }
+    },
+    {
+      "slug": "cal-com",
+      "name": "Cal.com",
+      "url": "https://cal.com",
+      "category": "productivity",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://cal.com/pricing",
+          "checkedAt": "2026-10-10",
+          "note": "Teams $12 and Organizations $28 per user/month (yearly), \"14 day free trial\", a free plan."
+        },
+        "tiers": ["Teams", "Organizations"],
+        "prices": [
+          { "tier": "Teams", "price": 12, "period": "month", "tolerance": 4 },
+          { "tier": "Organizations", "price": 28, "period": "month", "tolerance": 9 }
+        ],
+        "freePlan": true,
+        "trialDays": 14,
+        "features": [],
+        "rubricOverall": [5, 9.5]
+      }
+    },
+    {
+      "slug": "fastmail",
+      "name": "Fastmail",
+      "url": "https://www.fastmail.com",
+      "category": "productivity",
+      "snapshot": null,
+      "expect": {
+        "source": {
+          "url": "https://www.fastmail.com/pricing/",
+          "checkedAt": "2026-10-10",
+          "note": "Individual US$6 per month (US$5 billed yearly); \"Try free for up to 30 days\"."
+        },
+        "tiers": ["Individual"],
+        "prices": [{ "tier": "Individual", "price": 6, "period": "month", "tolerance": 1 }],
+        "freePlan": null,
+        "trialDays": 30,
+        "features": [],
+        "rubricOverall": [5, 9.5]
+      }
+    }
+  ]
+}

@@ -221,6 +221,95 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/guides": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List published comparisons, alternatives lists and best-of lists */
+    get: {
+      parameters: {
+        query?: {
+          type?: components["schemas"]["GuideType"];
+          category?: string;
+          limit?: number;
+          offset?: number | null;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Guides, newest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["GuideList"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/guides/{type}/{slug}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a published comparison or list with its content blocks */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          type: components["schemas"]["GuideType"];
+          slug: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The guide */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["GuideDetail"];
+          };
+        };
+        /** @description Not found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/products": {
     parameters: {
       query?: never;
@@ -301,6 +390,299 @@ export interface paths {
     };
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Full-text search across published reviews, comparisons and lists */
+    get: {
+      parameters: {
+        query: {
+          q: string;
+          category?: string;
+          /** @description Web paths: /reviews, /compare, /alternatives, /best + /{slug} */
+          type?: components["schemas"]["ArticleType"];
+          limit?: number;
+          offset?: number | null;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Best matches first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SearchResultList"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/deals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Active deals, promo codes and trials for reviewed products */
+    get: {
+      parameters: {
+        query?: {
+          category?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Active deals by category */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DealList"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/reviews/{slug}/vote": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Was this review helpful? One vote per visitor per day; voting again changes it */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          slug: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["VoteRequest"];
+        };
+      };
+      responses: {
+        /** @description Accepted */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AcceptedResponse"];
+          };
+        };
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Turnstile check failed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Review not found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Rate limited */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/reports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Report a pricing change or an error in a review */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ReportRequest"];
+        };
+      };
+      responses: {
+        /** @description Accepted */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AcceptedResponse"];
+          };
+        };
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Turnstile check failed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Rate limited */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/newsletter": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Subscribe to the newsletter (double opt-in: a confirmation email is sent) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["NewsletterRequest"];
+        };
+      };
+      responses: {
+        /** @description Accepted */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AcceptedResponse"];
+          };
+        };
+        /** @description Invalid request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Turnstile check failed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Rate limited */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -442,6 +824,8 @@ export interface components {
         reviewSlug: string | null;
         note: string | null;
       }[];
+      /** @description Video reviews on YouTube; empty when none */
+      videos: components["schemas"]["Video"][];
     };
     /** @description Typed content blocks. Citation marks reference `sources[].id`; go-link marks and CTA blocks reference `links.go`. */
     ArticleBody: (
@@ -744,6 +1128,104 @@ export interface components {
       /** Format: date-time */
       fetchedAt: string;
     };
+    Video: {
+      /**
+       * @description short = vertical 9:16, long = 16:9
+       * @enum {string}
+       */
+      kind: "short" | "long";
+      youtubeId: string;
+      title: string | null;
+      description: string | null;
+      durationSeconds: number | null;
+      /** Format: date-time */
+      uploadedAt: string | null;
+      /** Format: uri */
+      embedUrl: string;
+      /** Format: uri */
+      watchUrl: string;
+      /** Format: uri */
+      thumbnailUrl: string;
+    };
+    GuideList: {
+      data: components["schemas"]["GuideSummary"][];
+      pagination: components["schemas"]["Pagination"];
+    };
+    GuideSummary: {
+      type: components["schemas"]["GuideType"];
+      /** @example notion-vs-coda */
+      slug: string;
+      title: string;
+      description: string | null;
+      /** Format: date-time */
+      publishedAt: string | null;
+      /** Format: date-time */
+      updatedAt: string;
+      /** Format: date-time */
+      lastVerifiedAt: string | null;
+      productCount: number;
+      category: {
+        slug: string;
+        name: string;
+      } | null;
+      image: components["schemas"]["Image"];
+      /** Format: uri */
+      url: string;
+    };
+    /** @enum {string} */
+    GuideType: "comparison" | "alternatives" | "best_of";
+    GuideDetail: {
+      type: components["schemas"]["GuideType"];
+      slug: string;
+      title: string;
+      seo: {
+        title: string;
+        description: string | null;
+        /** Format: uri */
+        canonicalUrl: string;
+      };
+      /** Format: date-time */
+      publishedAt: string | null;
+      /** Format: date-time */
+      updatedAt: string;
+      /** Format: date-time */
+      lastVerifiedAt: string | null;
+      aiDisclosure: string | null;
+      author: {
+        slug: string;
+        name: string;
+      } | null;
+      category: {
+        slug: string;
+        name: string;
+      } | null;
+      /** @description Products in article order; comparison_table productIds reference `id` */
+      products: {
+        /** Format: uuid */
+        id: string;
+        slug: string;
+        name: string;
+        tagline: string | null;
+        /** Format: uri */
+        websiteUrl: string;
+        reviewSlug: string | null;
+        score: number | null;
+        /** @description Go-link slug for this product's CTAs */
+        go: string | null;
+        discontinued: boolean;
+      }[];
+      blocks: components["schemas"]["ArticleBody"];
+      media: {
+        [key: string]: components["schemas"]["Image"];
+      };
+      sources: components["schemas"]["Source"][];
+      links: {
+        /** Format: uri */
+        goBaseUrl: string;
+        /** Format: uri */
+        web: string;
+      };
+    };
     ProductList: {
       data: components["schemas"]["ProductSummary"][];
       pagination: components["schemas"]["Pagination"];
@@ -777,6 +1259,85 @@ export interface components {
       /** @enum {string} */
       period: "month" | "year" | "one_time" | "usage" | "custom";
       highlights: string[];
+    };
+    SearchResultList: {
+      data: components["schemas"]["SearchResult"][];
+      pagination: components["schemas"]["Pagination"];
+    };
+    SearchResult: components["schemas"]["ReviewSummary"] & {
+      type: components["schemas"]["ArticleType"];
+      /**
+       * Format: uri
+       * @description Canonical web URL of the article
+       */
+      url: string;
+    };
+    /**
+     * @description Web paths: /reviews, /compare, /alternatives, /best + /{slug}
+     * @enum {string}
+     */
+    ArticleType: "review" | "comparison" | "alternatives" | "best_of";
+    DealList: {
+      data: components["schemas"]["Deal"][];
+    };
+    Deal: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      description: string | null;
+      /** @description Promo code, if the deal needs one */
+      code: string | null;
+      /** @example 30% off first year */
+      discountText: string | null;
+      /** Format: date-time */
+      endsAt: string | null;
+      product: {
+        slug: string;
+        name: string;
+        logo: components["schemas"]["Image"];
+      };
+      category: {
+        slug: string;
+        name: string;
+      } | null;
+      reviewSlug: string;
+      links: {
+        /** @description Go-link slug; open `${webUrl}/go/{slug}?p=deals` */
+        go: string | null;
+        /** Format: uri */
+        web: string;
+      };
+    };
+    AcceptedResponse: {
+      /** @enum {string} */
+      status: "accepted";
+      message: string;
+    };
+    VoteRequest: {
+      helpful: boolean;
+      /** @description Cloudflare Turnstile token; required when the server has Turnstile enabled */
+      turnstileToken?: string;
+    };
+    ReportRequest: {
+      /** @description Review slug the report is about */
+      article?: string;
+      /**
+       * @default other
+       * @enum {string}
+       */
+      kind: "pricing" | "error" | "other";
+      message: string;
+      /** Format: email */
+      email?: string;
+      /** @description Cloudflare Turnstile token; required when the server has Turnstile enabled */
+      turnstileToken?: string;
+    };
+    NewsletterRequest: {
+      /** Format: email */
+      email: string;
+      source?: string;
+      /** @description Cloudflare Turnstile token; required when the server has Turnstile enabled */
+      turnstileToken?: string;
     };
   };
   responses: never;

@@ -289,6 +289,63 @@ Deviations and decisions:
 - Prompt evals on golden set; hill-climb the writing and fact-check prompts.
 - Exit: 100+ published pages, first conversions attributed, refresh running unattended.
 
+### Phase 2 status (2026-10-11)
+
+Built and verified locally (lint, types and tests in all 44 Turborepo tasks; production builds of web,
+CMS and API; live model checks noted below). One migration (`0005_phase2_foundation`) carries the
+schema for everything here.
+
+- **Operations:** notifications (CMS inbox + Resend email + Slack/Telegram webhooks, per-event
+  channels, de-duplicated; FR-CMS-8); per-job cost ceilings that pause a job for approval, with a
+  default ceiling setting and cost alerts at target × multiplier (FR-INT-6, NFR-6); bulk intake by
+  pasted list or CSV, grouped in batches (FR-INT-2); auto-publish per category behind the global
+  human-review switch, with soft-score threshold and daily-cap scheduling (FR-QA-4).
+- **Freshness:** daily refresh scheduler (product interval, shorter for top-traffic pages from
+  imported page views); refreshes of live articles check the site first, re-research, diff the fact
+  sheet, rewrite only the affected sections and rebuild the pricing table, then fact-check and queue
+  for review; no material change just re-verifies the date (FR-MNT-1, FR-MNT-2, FR-RES-9). A site that
+  stays down marks the product discontinued: banner with reviewed alternatives, CTAs removed, links
+  paused, refreshes stopped, one-click reactivate (FR-MNT-4).
+- **Derivative content:** comparisons (2–3 products), alternatives lists and best-of lists written
+  from existing fact sheets with per-product CTAs, comparison tables, multi-product fact-check and
+  QA, Article + ItemList JSON-LD; pages `/compare`, `/alternatives`, `/best` (+ index pages, home,
+  category, sitemap, feed) and `GET /v1/guides`; social posts for X/LinkedIn/Threads for every
+  article (FR-CON-8).
+- **Affiliate and revenue:** catch-all fallback via Skimlinks/Sovrn (FR-AFF-5); daily link health
+  with auto-pause (FR-AFF-10); program reminders; conversion import by CSV and Impact /
+  PartnerStack / Awin APIs with SubID attribution (FR-AFF-11, FR-AFF-12); `/analytics` with revenue,
+  EPC, funnels from Plausible page views, costs and margins, CSV exports (FR-ANL-2/3/4).
+- **Visitors:** site search on a GIN-indexed tsvector (FR-WEB-7), deals (FR-WEB-8), helpful votes and
+  share buttons (FR-WEB-10), public write API for votes, reports and double-opt-in newsletter with
+  rate limits and Turnstile (FR-API-3).
+- **Media:** CMS media library with usage and alt editing (FR-CMS-9), screenshot crop/frame/annotate
+  with browser-framed copies made by the graphics step (FR-MED-3), fal.ai image adapter with a fixed
+  no-logos/no-UI prompt template (FR-MED-2).
+- **Sourcing:** daily Product Hunt + Hacker News collection, Haiku category screening, affiliate
+  probing and expected-value scoring into the CMS "Suggested products" queue (FR-INT-7).
+- **Video:** script (Sonnet, length-checked), ElevenLabs voice with word timings, Remotion short
+  (9:16) and long (16:9) renders with captions and QR outro, YouTube upload with the synthetic-media
+  flag, CMS panel, lite embed + VideoObject (FR-VID-1..5). Sample renders verified locally.
+- **Evals:** golden set of 10 products with sourced expectations, snapshot export, suites for
+  `fact_sheet`, `write` and `fact_check`, repo-vs-CMS prompt comparison, results in `eval_runs` and
+  the CMS. First real run on Plausible: fact sheet 100 %; fact-check recall 1.0 / precision 0.75 on
+  six seeded errors ($0.27).
+
+Deviations and decisions:
+
+- Refreshes use the normal API, not the Batches API: a refresh rewrites a few sections, so the
+  saving is small next to the added latency and code.
+- A redirect to another domain is reported, not treated as dead (rebrands are common); only a site
+  that stays down is marked discontinued.
+- Auto-publish needs both the category opt-in and `publishing.requireHumanReview = false` (D-3 stays
+  the default).
+- Derivatives require researched products; the CMS lists only products with a fact sheet and the job
+  fails with the names to research first.
+- Generated-image prompts are a fixed template, not an LLM call (free, and the guardrails cannot be
+  dropped). Product Hunt needs `PRODUCT_HUNT_TOKEN` in practice (its feed links are bot-blocked).
+- Network "new programs" directories are not crawled; sourcing probes each candidate's own
+  affiliate pages instead.
+
 ### Phase 3 — Mobile and growth (Q1 2027)
 
 - `apps/mobile` (Expo): browse, search, review reader rendering blocks natively, saved items, price-change push alerts, deep/universal links (FR-API-4).

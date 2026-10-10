@@ -1,6 +1,7 @@
-import { listCategoriesWithCounts, listPublishedReviews } from "@repo/core";
+import { listCategoriesWithCounts, listPublishedArticles, listPublishedReviews } from "@repo/core";
 import { getDb } from "@repo/db";
 import Link from "next/link";
+import { GuideGrid } from "../components/guide-card";
 import { ReviewGrid } from "../components/review-card";
 import { SITE } from "../lib/site";
 
@@ -9,9 +10,10 @@ export const revalidate = 300;
 
 export default async function HomePage() {
   const db = getDb();
-  const [reviews, categories] = await Promise.all([
+  const [reviews, categories, guides] = await Promise.all([
     listPublishedReviews(db, { limit: 12 }),
     listCategoriesWithCounts(db),
+    listPublishedArticles(db, { types: ["comparison", "alternatives", "best_of"], limit: 6 }),
   ]);
   return (
     <div className="mx-auto max-w-6xl px-4">
@@ -41,6 +43,27 @@ export default async function HomePage() {
           </div>
           <div className="mt-6">
             <ReviewGrid reviews={reviews} />
+          </div>
+        </section>
+      ) : null}
+
+      {guides.length > 0 ? (
+        <section aria-labelledby="guides-heading" className="mt-16">
+          <div className="flex items-baseline justify-between">
+            <h2 id="guides-heading" className="text-xl font-semibold">
+              Comparisons and shortlists
+            </h2>
+            <span className="flex gap-4 text-sm">
+              <Link href="/compare" className="text-brand hover:underline">
+                Comparisons
+              </Link>
+              <Link href="/best" className="text-brand hover:underline">
+                Best of
+              </Link>
+            </span>
+          </div>
+          <div className="mt-6">
+            <GuideGrid guides={guides} />
           </div>
         </section>
       ) : null}

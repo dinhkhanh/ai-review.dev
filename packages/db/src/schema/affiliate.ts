@@ -91,6 +91,10 @@ export const affiliateLinks = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }),
     lastHealthCheckAt: timestamp("last_health_check_at", { withTimezone: true }),
     healthDetail: text("health_detail"),
+    /** Consecutive failed health checks (FR-AFF-10); the link is paused after the configured limit. */
+    healthFailures: smallint("health_failures").notNull().default(0),
+    /** Landing URL after following redirects at the last health check. */
+    finalUrl: text("final_url"),
     notes: text("notes"),
     ...timestamps(),
   },
@@ -132,6 +136,21 @@ export const clicks = pgTable(
   (t) => [index("clicks_ts_idx").on(t.ts), index("clicks_slug_ts_idx").on(t.goSlug, t.ts)],
 );
 
+/** One conversion import run (CSV upload or network API sync, FR-AFF-11). */
+export const conversionImports = pgTable("conversion_imports", {
+  id: id(),
+  network: affiliateNetwork("network"),
+  source: text("source").notNull(),
+  filename: text("filename"),
+  rows: integer("rows").notNull().default(0),
+  inserted: integer("inserted").notNull().default(0),
+  updated: integer("updated").notNull().default(0),
+  unmatched: integer("unmatched").notNull().default(0),
+  errors: jsonb("errors").$type<Array<{ row: number; message: string }>>().notNull().default([]),
+  createdByUserId: text("created_by_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const conversions = pgTable(
   "conversions",
   {
@@ -140,6 +159,10 @@ export const conversions = pgTable(
     programId: uuid("program_id").references(() => affiliatePrograms.id, { onDelete: "set null" }),
     subId: text("sub_id"),
     articleId: uuid("article_id").references(() => articles.id, { onDelete: "set null" }),
+    /** Attribution parsed from the SubID / program (FR-AFF-12). */
+    productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
+    placement: text("placement"),
+    importId: uuid("import_id").references(() => conversionImports.id, { onDelete: "set null" }),
     externalOrderId: text("external_order_id"),
     amount: numeric("amount", { precision: 12, scale: 2 }),
     commission: numeric("commission", { precision: 12, scale: 2 }).notNull(),
@@ -153,5 +176,32 @@ export const conversions = pgTable(
     uniqueIndex("conversions_network_order_uq").on(t.network, t.externalOrderId),
     index("conversions_subid_idx").on(t.subId),
     index("conversions_occurred_idx").on(t.occurredAt),
+    index("conversions_article_idx").on(t.articleId),
   ],
+);
+
+/** Deals and coupons shown on /deals and review pages (FR-WEB-8). Links go through the go-slug. */
+export const deals = pgTable(
+  "deals",
+  {
+    id: id(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    programId: uuid("program_id").references(() => affiliatePrograms.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** Promo code, if the deal needs one. */
+    code: text("code"),
+    /** Short badge text, e.g. "30% off first year" or "14-day free trial". */
+    discountText: text("discount_text"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    active: boolean("active").notNull().default(true),
+    /** "manual", "program" (from affiliate terms) or "fact_sheet" (free trial/plan). */
+    source: text("source").notNull().default("manual"),
+    position: integer("position").notNull().default(0),
+    ...timestamps(),
+  },
+  (t) => [index("deals_product_idx").on(t.productId), index("deals_active_idx").on(t.active, t.endsAt)],
 );

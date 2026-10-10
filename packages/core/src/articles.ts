@@ -1,7 +1,9 @@
 import {
   articleBodySchema,
   slugify,
+  socialSnippetsSchema,
   type ArticleBody,
+  type SocialSnippets,
   type FactCheckReport,
   type QaScorecard,
   type Seo,
@@ -16,6 +18,7 @@ import {
   count,
   desc,
   eq,
+  factSheets,
   gte,
   inArray,
   ne,
@@ -24,6 +27,7 @@ import {
   type DbOrTx,
 } from "@repo/db";
 import { DomainError } from "./errors";
+import { refreshArticleSearchText } from "./search";
 import { getSetting } from "./settings";
 
 type ArticleType = (typeof articles.type.enumValues)[number];
@@ -92,6 +96,8 @@ export interface CreateArticleInput {
   locale?: string;
   authorId?: string | null;
   brief?: SeoBrief | null;
+  /** Category of a best-of or alternatives list (FR-CON-8). */
+  categoryId?: string | null;
 }
 
 export async function createArticle(db: DbOrTx, input: CreateArticleInput) {
@@ -108,6 +114,7 @@ export async function createArticle(db: DbOrTx, input: CreateArticleInput) {
       locale,
       authorId: input.authorId ?? null,
       brief: input.brief ?? null,
+      categoryId: input.categoryId ?? null,
     })
     .returning();
   return row!;
@@ -296,6 +303,8 @@ export async function publishArticle(db: DbOrTx, articleId: string, opts: { now?
       throw new DomainError("conflict", `Daily publishing cap reached (${cap}); schedule it for tomorrow instead`);
     }
   }
+  const researchedAt = await factsVerifiedAt(db, article.productIds.length ? article.productIds : [article.productId]);
+  const verified = [article.lastVerifiedAt, researchedAt].filter((d): d is Date => !!d);
   const [row] = await db
     .update(articles)
     .set({
@@ -303,14 +312,37 @@ export async function publishArticle(db: DbOrTx, articleId: string, opts: { now?
       publishedVersionId: version.id,
       publishedAt: article.publishedAt ?? now,
       scheduledFor: null,
-      lastVerifiedAt: article.lastVerifiedAt ?? now,
+      // "Facts verified" follows the latest research behind the published version (FR-MNT-2).
+      lastVerifiedAt: verified.length ? new Date(Math.max(...verified.map((d) => d.getTime()))) : now,
     })
     .where(eq(articles.id, articleId))
     .returning();
   if (article.productId) {
     await db.update(products).set({ status: "active" }).where(eq(products.id, article.productId));
   }
+  await refreshArticleSearchText(db, articleId);
   return row!;
+}
+
+/**
+ * When the facts behind an article were last researched: the oldest of its products' latest fact
+ * sheets (a comparison is only as fresh as its stalest product). Null when none has a fact sheet.
+ */
+export async function factsVerifiedAt(db: DbOrTx, productIds: Array<string | null>): Promise<Date | null> {
+  const ids = productIds.filter((x): x is string => !!x);
+  if (ids.length === 0) return null;
+  const rows = await db
+    .select({ productId: factSheets.productId, at: sql<string>`max(${factSheets.createdAt})` })
+    .from(factSheets)
+    .where(inArray(factSheets.productId, ids))
+    .groupBy(factSheets.productId);
+  if (rows.length < ids.length) return null;
+  return new Date(Math.min(...rows.map((r) => new Date(r.at).getTime())));
+}
+
+/** Bumps "facts verified" without a new version, when a refresh found nothing material (FR-MNT-1). */
+export async function markArticleVerified(db: DbOrTx, articleId: string, at = new Date()) {
+  await db.update(articles).set({ lastVerifiedAt: at }).where(eq(articles.id, articleId));
 }
 
 /** Scheduled articles whose time has come (run by a cron). */
@@ -381,11 +413,24 @@ export async function resolveComment(db: DbOrTx, commentId: string, resolved = t
   await db.update(articleComments).set({ resolved }).where(eq(articleComments.id, commentId));
 }
 
-export async function getArticleIdBySlug(db: DbOrTx, slug: string, type: ArticleType = "review") {
+/**
+ * Article id for a slug (click and conversion attribution). Without a type, any article type
+ * matches, reviews first: SubIDs carry only the slug (FR-AFF-7, FR-AFF-12).
+ */
+export async function getArticleIdBySlug(db: DbOrTx, slug: string, type?: ArticleType) {
   const [row] = await db
     .select({ id: articles.id })
     .from(articles)
-    .where(and(eq(articles.slug, slug), eq(articles.type, type)))
+    .where(and(eq(articles.slug, slug), type ? eq(articles.type, type) : undefined))
+    .orderBy(sql`(${articles.type} = 'review') desc`, asc(articles.createdAt))
     .limit(1);
   return row?.id ?? null;
+}
+
+/** Stores generated social posts on the article (FR-CON-8). */
+export async function setArticleSocial(db: DbOrTx, articleId: string, social: SocialSnippets) {
+  await db
+    .update(articles)
+    .set({ social: socialSnippetsSchema.parse(social) })
+    .where(eq(articles.id, articleId));
 }

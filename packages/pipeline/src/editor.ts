@@ -13,7 +13,15 @@ export {
 } from "./article-lines";
 export { PROMPT_KEYS, PROMPTS, resolvePrompt, type PromptKey, type PromptDefinition } from "./prompts";
 export { computeQaScorecard, findBannedPhrases } from "./qa";
-export { prepareRerun, REVIEW_STEPS, type ReviewStep } from "./review-steps";
+export {
+  DERIVATIVE_STEPS,
+  prepareRerun,
+  REVIEW_STEPS,
+  stepsForPreset,
+  type DerivativeStep,
+  type ReviewStep,
+} from "./review-steps";
 export { regenerateSection, sectionKeyOf } from "./section";
 export { recheckBlocks } from "./section-check";
 export type { StepServices } from "./step";
+export { generateSocialSnippets } from "./steps/social";

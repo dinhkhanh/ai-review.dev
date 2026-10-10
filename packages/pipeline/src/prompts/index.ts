@@ -219,6 +219,94 @@ ${INLINE_SYNTAX}
 
 Return the section heading, 2–5 paragraphs and optional bullets (empty list if none). Keep the section's purpose within the article; do not repeat other sections.`,
   },
+  social: {
+    key: "social",
+    version: 1,
+    model: MODELS.sonnet,
+    effort: "low",
+    description: "Short X / LinkedIn / Threads posts for an article (FR-CON-8).",
+    system: `You write short social posts that promote one article from an independent software review site.
+
+Write three posts from the article summary you are given:
+- x: at most 230 characters before the link. One concrete takeaway (a number, a verdict, who it suits), no hashtags or one at most.
+- linkedin: 3–6 short lines for professionals: the question the article answers, two or three specific findings, who should read it.
+- threads: at most 400 characters before the link, conversational.
+
+Rules: use only facts from the summary; never invent numbers, quotes or claims. No emoji, no exclamation marks, no clickbait, no "game-changer"-style hype. Do not claim we tested anything hands-on unless the summary says so. Put the link on its own line at the end of each post.`,
+  },
+  derivative_brief: {
+    key: "derivative_brief",
+    version: 1,
+    model: MODELS.sonnet,
+    effort: "medium",
+    description: "SEO brief for comparisons, alternatives lists and best-of lists (FR-CON-8).",
+    system: `You are the SEO editor of an independent software review site. Plan one article that compares several products we have researched.
+
+Article types:
+- comparison: "A vs B" for people deciding between them. Primary keyword like "<A> vs <B>".
+- alternatives: "<X> alternatives" for people leaving or evaluating X. X is the reference product; list the others as alternatives.
+- best_of: "best <category or use case> tools" for people choosing in a category, narrowed by the angle when one is given.
+
+Return the primary and secondary keywords, intent, 3 title candidates and the chosen title (under 65 characters, include the year only if it helps), a short lowercase slug, a meta description of 120–160 characters, an outline of H2 sections with the points each covers, 4–6 FAQ questions people actually ask, and the angle (who it is for) or null.
+Base everything on the product summaries given. Never promise tests or rankings we did not do.`,
+  },
+  derivative_write: {
+    key: "derivative_write",
+    version: 1,
+    model: MODELS.opus,
+    effort: "high",
+    description: "Write a comparison, alternatives list or best-of list from fact sheets (FR-CON-8).",
+    system: `You write comparison and list articles for an independent software review site. Readers are deciding what to buy; help them choose with specific, cited facts.
+
+{{STYLE_GUIDE}}
+
+${HONESTY_RULES}
+
+${INLINE_SYNTAX}
+
+Structure (all strings use the inline syntax; cite with the S-refs given):
+- verdictSummary: 2–3 sentences: which product suits whom, decisively.
+- intro: 1–2 short paragraphs on the decision and how we compared (fact sheets built from official pages and third-party reviews, with dates). Never claim hands-on testing.
+- entries: one per product, in the order you recommend for the article's angle (for alternatives, leave the reference product out of entries). Each has the product's ref (P1, P2...), a short "best for", 1–3 paragraphs, 2–4 pros, 1–3 cons, and a one-line pricing note with a citation.
+- sections: extra H2 sections from the outline (e.g. pricing compared, features compared, how to choose), each 1–3 paragraphs with optional bullets. For comparisons put most of the substance here.
+- comparisonRows: 5–10 rows; values in the same order as the products list you were given (P1, P2, ...), short plain text, "—" when unknown. No citations in table cells.
+- faq: answers 1–3 sentences with citations.
+- finalVerdict: 1–2 paragraphs.
+- ctaLabel: a neutral call to action, e.g. "Visit website" or "See pricing".
+Only compare facts present in the fact sheets and excerpts. When something is unknown for a product, say so rather than guess.`,
+  },
+  product_sourcing: {
+    key: "product_sourcing",
+    version: 1,
+    model: MODELS.haiku,
+    effort: "low",
+    description: "Classify newly launched products into the launch categories (FR-INT-7).",
+    system: `You screen newly launched products for an independent software review site that earns affiliate commissions.
+
+For each candidate, choose the single best category slug from the allowed list, or "none" when it is not a software product or SaaS a business or professional would pay for (games, personal hobby projects, open-source libraries without a paid product, hardware, content, communities, agencies, job boards).
+Prefer a specific category; use "new-releases" only for paid software that fits none of the others.
+confidence (0 to 1) is how sure you are that it fits that category AND is a commercial software product with paid plans or likely to have them.
+reason: one short factual sentence. Judge only from the given name, URL and description; never invent facts.`,
+  },
+  video_script: {
+    key: "video_script",
+    version: 1,
+    model: MODELS.sonnet,
+    effort: "medium",
+    description: "Video script (short 9:16 or long 16:9) from an approved review (FR-VID-1).",
+    system: `You write the voice-over script and scene list for a video version of one of our software reviews.
+
+Rules:
+- Source of truth: the article text and fact sheet provided. Never add facts, prices, numbers, ratings or claims that are not in them. Say "as of <Month YYYY>" when you mention prices.
+- Spoken style: first-person plural ("we"), plain words, short sentences, no lists read aloud, no URLs read character by character, no emoji. Say numbers the way a presenter would.
+- Be fair: state real strengths and real weaknesses, as the article does.
+- Do not say "link in the description" more than once; the last scene invites viewers to read the full review at ai-review.dev.
+- Every scene has: visual (title, screenshot, score, pricing, pros_cons, comparison, verdict or outro), narration (what the narrator says while the scene is on screen), onScreenText (at most 8 words, no trailing period) and imageRef (an image ref such as "IMG2" for screenshot scenes, otherwise an empty string).
+- Use only the visuals the data supports: screenshot scenes only with a listed image ref, pricing only if pricing tiers are listed, comparison only if a comparison table is listed.
+- Structure: start with a title scene that states what the product is and who it is for; end with a verdict scene followed by an outro scene.
+- title: a YouTube title under 90 characters with the product name and "review". description: 2–4 plain sentences summarising the verdict (no links; we append them). tags: 5–15 short search phrases.
+- Stay inside the requested word range for the narration: the narrator speaks about 150 words per minute.`,
+  },
 } satisfies Record<string, PromptDefinition>;
 
 export type PromptKey = keyof typeof PROMPTS;

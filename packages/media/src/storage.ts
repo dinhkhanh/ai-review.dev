@@ -1,10 +1,12 @@
-import { mediaBlobs, type DbOrTx } from "@repo/db";
+import { eq, mediaBlobs, type DbOrTx } from "@repo/db";
 import { AwsClient } from "aws4fetch";
 import type { StorageKind } from "./urls";
 
 export interface StorageDriver {
   kind: StorageKind;
   put(key: string, bytes: Buffer, mimeType: string): Promise<void>;
+  /** Reads an object back (screenshot processing, FR-MED-3); null when it does not exist. */
+  get?(key: string): Promise<Buffer | null>;
 }
 
 export interface R2Config {
@@ -34,10 +36,17 @@ export function createR2Storage(config: R2Config, fetchImpl: typeof fetch = fetc
     region: "auto",
   });
   const base = `https://${config.accountId}.r2.cloudflarestorage.com/${config.bucket}`;
+  const objectUrl = (key: string) => `${base}/${key.split("/").map(encodeURIComponent).join("/")}`;
   return {
     kind: "r2",
+    async get(key) {
+      const res = await fetchImpl(await client.sign(objectUrl(key), { method: "GET" }));
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`R2 read failed for ${key}: HTTP ${res.status}`);
+      return Buffer.from(await res.arrayBuffer());
+    },
     async put(key, bytes, mimeType) {
-      const request = await client.sign(`${base}/${key.split("/").map(encodeURIComponent).join("/")}`, {
+      const request = await client.sign(objectUrl(key), {
         method: "PUT",
         body: new Uint8Array(bytes),
         headers: { "Content-Type": mimeType, "Cache-Control": "public, max-age=31536000, immutable" },
@@ -52,6 +61,10 @@ export function createR2Storage(config: R2Config, fetchImpl: typeof fetch = fetc
 export function createDbStorage(db: DbOrTx): StorageDriver {
   return {
     kind: "db",
+    async get(key) {
+      const [row] = await db.select({ data: mediaBlobs.data }).from(mediaBlobs).where(eq(mediaBlobs.key, key)).limit(1);
+      return row ? Buffer.from(row.data) : null;
+    },
     async put(key, bytes, mimeType) {
       await db
         .insert(mediaBlobs)

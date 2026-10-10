@@ -1,5 +1,13 @@
 import { articleText, readingGrade } from "@repo/content";
-import { addArticleVersion, getArticle, getCurrentVersion, getSetting, listSources, sourceRefs } from "@repo/core";
+import {
+  addArticleVersion,
+  getArticle,
+  getCurrentVersion,
+  getSetting,
+  articleProductIds,
+  listSourcesForProducts,
+  sourceRefs,
+} from "@repo/core";
 import { z } from "zod";
 import { applyLines, blockToLines, citationSignature, isEditable } from "../article-lines";
 import { findBannedPhrases } from "../qa";
@@ -27,8 +35,8 @@ export const stylePassStep = defineStep({
   async run(ctx, input) {
     const article = await getArticle(ctx.db, input.articleId);
     const version = await getCurrentVersion(ctx.db, input.articleId);
-    if (!article?.productId || !version) throw new Error("Article or version not found");
-    const refs = sourceRefs(await listSources(ctx.db, article.productId));
+    if (!article || !articleProductIds(article).length || !version) throw new Error("Article or version not found");
+    const refs = sourceRefs(await listSourcesForProducts(ctx.db, articleProductIds(article)));
     const banned = (await getSetting(ctx.db, "editorial.bannedPhrases")) ?? [];
     const before = articleText(version.blocks);
     const bannedBefore = findBannedPhrases(before, banned);

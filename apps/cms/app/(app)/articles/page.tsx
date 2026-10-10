@@ -1,3 +1,4 @@
+import { ARTICLE_TYPE_LABEL } from "@repo/content";
 import { listArticles, type ArticleStatus } from "@repo/core";
 import { getDb } from "@repo/db";
 import Link from "next/link";
@@ -31,10 +32,11 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
       {rows.length === 0 ? (
         <Empty>Nothing here.</Empty>
       ) : (
-        <Table head={["Title", "Product", "Status", "Score", "Gates", "Updated", ""]}>
+        <Table head={["Title", "Type", "Product", "Status", "Score", "Gates", "Updated", ""]}>
           {rows.map((a) => (
             <tr key={a.id} className="border-t border-border">
               <td className="p-3 font-medium">{a.title}</td>
+              <td className="p-3 text-muted">{ARTICLE_TYPE_LABEL[a.type]}</td>
               <td className="p-3">{a.productName ?? "—"}</td>
               <td className="p-3">
                 <StatusBadge status={a.status} />

@@ -117,3 +117,31 @@ export function withUtm(destination: string, opts: UtmOptions): string {
   set("utm_content", opts.content ? sanitizeToken(opts.content, 40) : null);
   return url.toString();
 }
+
+/** Catch-all network used to monetise the vendor fallback (FR-AFF-5, D-4). */
+export interface CatchAllConfig {
+  network: "skimlinks" | "sovrn";
+  /** Skimlinks publisher id or Sovrn (VigLink) API key; both are public by design. */
+  publisherId: string;
+}
+
+/**
+ * Wraps an outbound URL in the catch-all network's redirect so merchants that run a program there
+ * still pay a commission. The SubID travels in the network's custom-tracking parameter.
+ */
+export function wrapCatchAll(destination: string, config: CatchAllConfig, subId: string): string {
+  const target = parseHttpUrl(destination).toString();
+  if (config.network === "skimlinks") {
+    const url = new URL("https://go.skimresources.com/");
+    url.searchParams.set("id", config.publisherId);
+    url.searchParams.set("xs", "1");
+    url.searchParams.set("url", target);
+    url.searchParams.set("xcust", subId);
+    return url.toString();
+  }
+  const url = new URL("https://redirect.viglink.com/");
+  url.searchParams.set("key", config.publisherId);
+  url.searchParams.set("u", target);
+  url.searchParams.set("cuid", subId);
+  return url.toString();
+}

@@ -63,12 +63,19 @@ export const products = pgTable(
     /** Resolved URLs (pricing, docs, logo, socials) from intake (FR-INT-3). */
     profile: jsonb("profile").$type<ProductProfile>(),
     lastResearchedAt: timestamp("last_researched_at", { withTimezone: true }),
+    /** When the refresh cron should next re-research this product (FR-MNT-1); null = not scheduled. */
+    nextRefreshAt: timestamp("next_refresh_at", { withTimezone: true }),
+    /** Set when the vendor site is gone or acquired (FR-MNT-4); the article shows a banner. */
+    discontinuedAt: timestamp("discontinued_at", { withTimezone: true }),
+    /** Why the product is discontinued/archived, shown to visitors in the banner. */
+    statusNote: text("status_note"),
     ...timestamps(),
   },
   (t) => [
     uniqueIndex("products_slug_locale_uq").on(t.slug, t.locale),
     uniqueIndex("products_domain_locale_uq").on(t.domain, t.locale),
     index("products_category_idx").on(t.categoryId),
+    index("products_next_refresh_idx").on(t.nextRefreshAt),
   ],
 );
 

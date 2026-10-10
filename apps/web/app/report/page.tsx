@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Turnstile } from "../../components/turnstile";
 
 export const metadata: Metadata = { title: "Report a change", robots: { index: false } };
 
@@ -16,7 +17,7 @@ export default async function ReportPage({
       </p>
       {error ? (
         <p role="alert" className="mt-4 rounded-md bg-danger/10 p-3 text-sm text-danger">
-          Please describe the change in a few words and try again.
+          Please describe the change in a few words and try again in a few minutes.
         </p>
       ) : null}
       <form action="/api/report" method="post" className="mt-6 space-y-4">
@@ -61,6 +62,7 @@ export default async function ReportPage({
             className="h-10 w-full rounded-md border border-border bg-bg px-3 text-sm"
           />
         </div>
+        <Turnstile />
         <button className="h-10 rounded-md bg-brand px-5 text-sm font-medium text-brand-fg">Send report</button>
       </form>
     </div>

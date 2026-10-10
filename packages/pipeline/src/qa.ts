@@ -1,5 +1,8 @@
 import {
+  articlePath,
   articleText,
+  buildListStructuredData,
+  validateListStructuredData,
   blockingClaims,
   buildReviewStructuredData,
   overlapRatio,
@@ -14,8 +17,9 @@ import {
   getCurrentVersion,
   getMediaAssets,
   getSetting,
+  articleProductIds,
   latestFactSheet,
-  listSources,
+  listSourcesForProducts,
   pricingCitationCoverage,
   getProduct,
   getVersion,
@@ -46,12 +50,16 @@ export async function computeQaScorecard(
 ): Promise<QaScorecard> {
   const article = await getArticle(db, articleId);
   const version = versionId ? await getVersion(db, versionId) : await getCurrentVersion(db, articleId);
-  if (!article?.productId || !version || version.articleId !== article.id)
+  const productIds = article ? articleProductIds(article) : [];
+  if (!article || productIds.length === 0 || !version || version.articleId !== article.id)
     throw new Error("Article or version not found");
-  const product = await getProduct(db, article.productId);
+  // Reviews have one product, a rubric and a pricing table; comparisons and lists cover several.
+  const isReview = article.type === "review";
+  const product = isReview && article.productId ? await getProduct(db, article.productId) : null;
+  const listProducts = isReview ? [] : await Promise.all(productIds.map((id) => getProduct(db, id)));
   const [sources, sheet, thresholds, banned, disclosure] = await Promise.all([
-    listSources(db, article.productId, { withContent: true }),
-    latestFactSheet(db, article.productId),
+    listSourcesForProducts(db, productIds, { withContent: true }),
+    isReview && article.productId ? latestFactSheet(db, article.productId) : Promise.resolve(null),
     getSetting(db, "qa.thresholds"),
     getSetting(db, "editorial.bannedPhrases"),
     getSetting(db, "editorial.aiDisclosure"),
@@ -75,25 +83,45 @@ export async function computeQaScorecard(
   );
   const thirdParty = sources.filter((s) => s.kind !== "official").length;
   const seo = version.seo;
-  const structured = buildReviewStructuredData({
-    siteUrl: "https://ai-review.dev",
-    siteName: "AI Review",
-    url: `https://ai-review.dev/reviews/${article.slug}`,
-    title: seo?.title ?? article.title,
-    description: seo?.metaDescription ?? "",
-    publishedAt: article.publishedAt,
-    updatedAt: new Date(),
-    author: { name: "Editor", url: "https://ai-review.dev/authors" },
-    product: { name: product?.name ?? article.title, websiteUrl: product?.websiteUrl ?? "https://ai-review.dev" },
-    score: version.overallScore,
-    factSheet: sheet?.data ?? null,
-    blocks,
-    breadcrumbs: [
-      { name: "Home", url: "https://ai-review.dev" },
-      { name: article.title, url: `https://ai-review.dev/reviews/${article.slug}` },
-    ],
-  });
-  const sdProblems = validateStructuredData(structured);
+  const pageUrl = `https://ai-review.dev${articlePath(article.type, article.slug)}`;
+  const structured = isReview
+    ? buildReviewStructuredData({
+        siteUrl: "https://ai-review.dev",
+        siteName: "AI Review",
+        url: pageUrl,
+        title: seo?.title ?? article.title,
+        description: seo?.metaDescription ?? "",
+        publishedAt: article.publishedAt,
+        updatedAt: new Date(),
+        author: { name: "Editor", url: "https://ai-review.dev/authors" },
+        product: { name: product?.name ?? article.title, websiteUrl: product?.websiteUrl ?? "https://ai-review.dev" },
+        score: version.overallScore,
+        factSheet: sheet?.data ?? null,
+        blocks,
+        breadcrumbs: [
+          { name: "Home", url: "https://ai-review.dev" },
+          { name: article.title, url: pageUrl },
+        ],
+      })
+    : buildListStructuredData({
+        siteUrl: "https://ai-review.dev",
+        siteName: "AI Review",
+        url: pageUrl,
+        title: seo?.title ?? article.title,
+        description: seo?.metaDescription ?? "",
+        publishedAt: article.publishedAt,
+        updatedAt: new Date(),
+        author: { name: "Editor", url: "https://ai-review.dev/authors" },
+        items: listProducts.flatMap((p) => (p ? [{ name: p.name, url: p.websiteUrl }] : [])),
+        blocks,
+        breadcrumbs: [
+          { name: "Home", url: "https://ai-review.dev" },
+          { name: article.title, url: pageUrl },
+        ],
+      });
+  const sdProblems = isReview ? validateStructuredData(structured) : validateListStructuredData(structured);
+  const lowerText = text.toLowerCase();
+  const uncovered = listProducts.filter((p) => p && !lowerText.includes(p.name.toLowerCase())).map((p) => p!.name);
   const bannedFound = findBannedPhrases(text, banned ?? []);
   const internalLinks = seo?.internalLinks.length ?? 0;
   const titleLen = (seo?.title ?? article.title).length;
@@ -129,7 +157,18 @@ export async function computeQaScorecard(
       passed: (fc?.uncited ?? 0) === 0,
       value: fc?.uncited ?? 0,
     },
-    { key: "rubric", label: "Rubric scores with computed overall score", hard: true, passed: hasRubric },
+    ...(isReview
+      ? [{ key: "rubric", label: "Rubric scores with computed overall score", hard: true, passed: hasRubric }]
+      : [
+          {
+            key: "products_covered",
+            label: "Every compared product is discussed",
+            hard: true,
+            passed: uncovered.length === 0,
+            value: listProducts.length,
+            detail: uncovered.join(", ") || undefined,
+          },
+        ]),
     { key: "golink", label: "CTA go-link present", hard: true, passed: ctas.length > 0, value: ctas.length },
     {
       key: "disclosure",
@@ -176,9 +215,9 @@ export async function computeQaScorecard(
     },
     {
       key: "headings",
-      label: "At least 6 H2 sections",
+      label: `At least ${isReview ? 6 : 4} H2 sections`,
       hard: false,
-      passed: headings(blocks) >= 6,
+      passed: headings(blocks) >= (isReview ? 6 : 4),
       value: headings(blocks),
     },
     {
@@ -247,6 +286,8 @@ export async function computeQaScorecard(
       detail: "Enforced by templates; confirm in review",
     },
   ];
-  const hardGatesPassed = checks.every((c) => !c.hard || c.passed);
-  return { hardGatesPassed, checks, computedAt: new Date().toISOString() };
+  // Review-only checks do not apply to comparisons and lists.
+  const applicable = isReview ? checks : checks.filter((c) => !["screenshots", "pricing_citations"].includes(c.key));
+  const hardGatesPassed = applicable.every((c) => !c.hard || c.passed);
+  return { hardGatesPassed, checks: applicable, computedAt: new Date().toISOString() };
 }

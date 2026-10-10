@@ -1,5 +1,13 @@
 import { extractClaims, type FactCheckReport } from "@repo/content";
-import { costSink, getArticle, getVersion, listSources, setVersionQa, sourceRefs } from "@repo/core";
+import {
+  articleProductIds,
+  costSink,
+  getArticle,
+  getVersion,
+  listSourcesForProducts,
+  setVersionQa,
+  sourceRefs,
+} from "@repo/core";
 import { buildReport, gatherEvidence, toChecked, verifyClaims } from "./fact-check-core";
 import { computeQaScorecard } from "./qa";
 import type { StepServices } from "./step";
@@ -11,12 +19,13 @@ import type { StepServices } from "./step";
 export async function recheckBlocks(services: StepServices, articleId: string, versionId: string, blockIds: string[]) {
   const article = await getArticle(services.db, articleId);
   const version = await getVersion(services.db, versionId);
-  if (!article?.productId || !version) throw new Error("Article or version not found");
-  const refs = sourceRefs(await listSources(services.db, article.productId));
+  const productIds = article ? articleProductIds(article) : [];
+  if (!article || !productIds.length || !version) throw new Error("Article or version not found");
+  const refs = sourceRefs(await listSourcesForProducts(services.db, productIds));
   const sink = costSink(services.db, {});
   const deps = { db: services.db, llm: services.makeLlm(sink), embedder: services.makeEmbedder?.(sink) ?? null };
   const claims = extractClaims(version.blocks.filter((b) => blockIds.includes(b.id)));
-  const evidence = await gatherEvidence(deps, article.productId, claims);
+  const evidence = await gatherEvidence(deps, productIds, claims);
   const verdicts = await verifyClaims(deps, claims, evidence, refs);
   const previous: FactCheckReport["claims"] = (version.factCheck?.claims ?? []).filter(
     (c) => !blockIds.includes(c.blockId),

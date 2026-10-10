@@ -25,6 +25,7 @@ import { SubmitButton } from "../../../../components/submit-button";
 import { Empty, fmtDate, JsonView, PageHeader, StatusBadge, Table, Tabs } from "../../../../components/ui";
 import {
   deleteLinkAction,
+  reactivateProductAction,
   refreshProductAction,
   saveAltAction,
   saveFactSheetAction,
@@ -33,6 +34,7 @@ import {
   updateProductAction,
 } from "../actions";
 import { LinkForm, ProgramForm } from "./affiliate-forms";
+import { LinkHealth } from "../../affiliate/link-health";
 
 export const metadata = { title: "Product" };
 
@@ -92,7 +94,8 @@ export default async function ProductPage({
             <a href={product.websiteUrl} target="_blank" rel="noopener" className="underline">
               {product.domain}
             </a>{" "}
-            · researched {fmtDate(product.lastResearchedAt)} · fact sheet v{sheet?.version ?? "—"}
+            · researched {fmtDate(product.lastResearchedAt)} · fact sheet v{sheet?.version ?? "—"} · next refresh{" "}
+            {product.nextRefreshAt ? fmtDate(product.nextRefreshAt).slice(0, 10) : "not scheduled"}
           </span>
         }
         actions={
@@ -111,6 +114,22 @@ export default async function ProductPage({
           </>
         }
       />
+      {product.status === "discontinued" ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+          <p className="min-w-0 flex-1">
+            <strong>Discontinued</strong>
+            {product.discontinuedAt ? ` since ${fmtDate(product.discontinuedAt).slice(0, 10)}` : ""}.{" "}
+            {product.statusNote ?? ""} Its pages show a banner with alternatives; affiliate links are paused and
+            refreshes stopped.
+          </p>
+          <form action={reactivateProductAction}>
+            <input type="hidden" name="productId" value={id} />
+            <SubmitButton size="sm" variant="secondary">
+              Reactivate
+            </SubmitButton>
+          </form>
+        </div>
+      ) : null}
       <Tabs
         active={tab}
         tabs={[
@@ -167,6 +186,14 @@ export default async function ProductPage({
                 <Label>Refresh every (days)</Label>
                 <Input name="refreshIntervalDays" type="number" defaultValue={product.refreshIntervalDays} />
               </div>
+            </div>
+            <div>
+              <Label>Status note (shown to visitors when discontinued)</Label>
+              <Input
+                name="statusNote"
+                defaultValue={product.statusNote ?? ""}
+                placeholder="e.g. Acme shut down in March 2026."
+              />
             </div>
             <SubmitButton size="sm">Save</SubmitButton>
           </ActionForm>
@@ -390,6 +417,7 @@ export default async function ProductPage({
                     </Button>
                   </form>
                 </div>
+                <LinkHealth link={l} productId={id} />
                 <LinkForm productId={id} programs={programRows} link={l} />
               </div>
             ))}

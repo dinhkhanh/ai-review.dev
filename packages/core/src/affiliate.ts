@@ -23,6 +23,8 @@ import {
   type DbOrTx,
 } from "@repo/db";
 import { DomainError } from "./errors";
+import { notify } from "./notifications";
+import { getSetting } from "./settings";
 
 type CommissionModel = (typeof affiliatePrograms.commissionModel.enumValues)[number];
 type LinkStatus = (typeof affiliateLinks.status.enumValues)[number];
@@ -176,19 +178,30 @@ export async function listLinks(db: DbOrTx, productId: string) {
     .orderBy(asc(affiliateLinks.priority), asc(affiliateLinks.createdAt));
 }
 
+/** Catch-all network config from settings, or null when disabled/incomplete (FR-AFF-5, D-4). */
+export async function catchAllConfig(db: DbOrTx): Promise<GoLinkTable["catchAll"]> {
+  const setting = await getSetting(db, "affiliate.catchAllFallback");
+  const publisherId = setting?.publisherId?.trim();
+  return setting?.enabled && setting.network && publisherId ? { network: setting.network, publisherId } : null;
+}
+
 /** Loads everything the resolver needs for one go-slug (FR-AFF-6). Cached by the web app. */
 export async function loadGoLinkTable(db: DbOrTx, slug: string): Promise<GoLinkTable | null> {
   const [go] = await db.select().from(goSlugs).where(eq(goSlugs.slug, slug)).limit(1);
   if (!go) return null;
-  const rows = await db
-    .select({ link: affiliateLinks, program: affiliatePrograms })
-    .from(affiliateLinks)
-    .leftJoin(affiliatePrograms, eq(affiliatePrograms.id, affiliateLinks.programId))
-    .where(eq(affiliateLinks.productId, go.productId));
+  const [rows, catchAll] = await Promise.all([
+    db
+      .select({ link: affiliateLinks, program: affiliatePrograms })
+      .from(affiliateLinks)
+      .leftJoin(affiliatePrograms, eq(affiliatePrograms.id, affiliateLinks.programId))
+      .where(eq(affiliateLinks.productId, go.productId)),
+    catchAllConfig(db),
+  ]);
   return {
     slug: go.slug,
     productId: go.productId,
     fallbackUrl: go.fallbackUrl,
+    catchAll,
     links: rows.map(({ link, program }) => ({
       id: link.id,
       destinationUrl: link.destinationUrl,
@@ -271,4 +284,76 @@ export async function purgeOldClicks(db: DbOrTx, now = new Date(), months = 13) 
     .where(sql`${clicks.ts} < ${cutoff.toISOString()}::timestamptz`)
     .returning({ id: clicks.id });
   return deleted.length;
+}
+
+/** ISO-8601 week label, e.g. "2026-W41", for weekly notification dedupe. */
+export function isoWeek(d: Date): string {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((t.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  return `${t.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+/**
+ * Program status reminders (FR-CMS-8): applications still "applied" after `days` get a weekly nudge
+ * to chase the network or record the decision.
+ */
+export async function remindStaleApplications(db: DbOrTx, opts: { now?: Date; days?: number } = {}) {
+  const now = opts.now ?? new Date();
+  const cutoff = new Date(now.getTime() - (opts.days ?? 14) * 86_400_000);
+  const stale = await db
+    .select({ program: affiliatePrograms, productName: products.name })
+    .from(affiliatePrograms)
+    .innerJoin(products, eq(products.id, affiliatePrograms.productId))
+    .where(
+      and(
+        eq(affiliatePrograms.status, "applied"),
+        sql`coalesce(${affiliatePrograms.appliedAt}, ${affiliatePrograms.updatedAt}) < ${cutoff.toISOString()}::timestamptz`,
+      ),
+    );
+  const week = isoWeek(now);
+  let sent = 0;
+  for (const { program, productName } of stale) {
+    const since = program.appliedAt ?? program.updatedAt;
+    const days = Math.floor((now.getTime() - since.getTime()) / 86_400_000);
+    const row = await notify(db, {
+      event: "program.reminder",
+      title: `Still waiting on ${program.name} (${productName}): applied ${days} days ago`,
+      body: `Check the ${program.network} dashboard and set the program to approved, active or rejected.${
+        program.dashboardUrl ? `\n${program.dashboardUrl}` : ""
+      }`,
+      href: `/products/${program.productId}`,
+      entityType: "affiliate_program",
+      entityId: program.id,
+      dedupeKey: `program.reminder:${program.id}:${week}`,
+    });
+    if (row) sent++;
+  }
+  return { stale: stale.length, sent };
+}
+
+/** All affiliate links with their last health check, failing ones first (FR-AFF-10, CMS). */
+export async function listLinkHealth(db: DbOrTx) {
+  return db
+    .select({
+      id: affiliateLinks.id,
+      productId: affiliateLinks.productId,
+      productName: products.name,
+      label: affiliateLinks.label,
+      status: affiliateLinks.status,
+      destinationUrl: affiliateLinks.destinationUrl,
+      finalUrl: affiliateLinks.finalUrl,
+      healthDetail: affiliateLinks.healthDetail,
+      healthFailures: affiliateLinks.healthFailures,
+      lastHealthCheckAt: affiliateLinks.lastHealthCheckAt,
+    })
+    .from(affiliateLinks)
+    .innerJoin(products, eq(products.id, affiliateLinks.productId))
+    .orderBy(
+      sql`case when ${affiliateLinks.status} = 'broken' then 0 when ${affiliateLinks.healthFailures} > 0 then 1 else 2 end`,
+      asc(products.name),
+    )
+    .limit(1000);
 }

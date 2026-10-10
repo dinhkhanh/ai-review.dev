@@ -1,15 +1,20 @@
 import { getJob } from "@repo/core";
 import { getDb } from "@repo/db";
-import { REVIEW_STEPS } from "@repo/pipeline/editor";
+import { stepsForPreset } from "@repo/pipeline/editor";
 import { Button } from "@repo/ui/button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh";
 import { SubmitButton } from "../../../../components/submit-button";
 import { duration, fmtDate, JsonView, Notice, PageHeader, StatusBadge, usd, usd4 } from "../../../../components/ui";
-import { cancelJobAction, rerunJob, retryJob } from "../actions";
+import { Input } from "@repo/ui/input";
+import { ActionForm } from "../../../../components/action-form";
+import { approveCeilingAction, cancelJobAction, rerunJob, retryJob } from "../actions";
 
 export const metadata = { title: "Job" };
+
+const REFRESH_ONLY = new Set<string>(["site_check", "refresh_plan", "refresh_rewrite"]);
+const WRITE_ONLY = new Set<string>(["competitors", "seo_brief", "write", "style_pass"]);
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +25,12 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const running = job.status === "running" || job.status === "queued";
   const input = job.input as Record<string, unknown>;
   const ceiling = job.costCeilingUsd ? Number(job.costCeilingUsd) : null;
+  const total = Number(job.totalCostUsd);
+  // Refresh-only steps appear when they ran; a refresh of a live article skips the writing steps.
+  const refreshPath = latest.has("refresh_plan");
+  const steps = stepsForPreset(job.preset).filter((name) =>
+    latest.has(name) ? true : REFRESH_ONLY.has(name) ? false : !(refreshPath && WRITE_ONLY.has(name)),
+  );
 
   return (
     <div className="space-y-6">
@@ -56,7 +67,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                 <SubmitButton size="sm">Retry</SubmitButton>
               </form>
             ) : null}
-            {running ? (
+            {running || job.status === "awaiting_approval" ? (
               <form action={cancelJobAction}>
                 <input type="hidden" name="jobId" value={job.id} />
                 <Button type="submit" size="sm" variant="danger">
@@ -74,12 +85,32 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           to run in the cloud).
         </Notice>
       ) : null}
-      {ceiling && Number(job.totalCostUsd) > ceiling ? (
-        <Notice tone="error">This job exceeded its cost ceiling.</Notice>
+      {job.status === "awaiting_approval" ? (
+        <div className="rounded-lg border border-border bg-bg p-4">
+          <p className="text-sm">
+            Paused at its cost ceiling after spending <strong>{usd.format(total)}</strong>. Approve a higher ceiling to
+            continue from the next step, or cancel the job.
+          </p>
+          <ActionForm action={approveCeilingAction} className="mt-3 flex flex-wrap items-end gap-2">
+            <input type="hidden" name="jobId" value={job.id} />
+            <label className="text-sm">
+              New ceiling (USD)
+              <Input
+                name="ceiling"
+                type="number"
+                step="0.5"
+                min={Math.ceil(total + 1)}
+                defaultValue={Math.ceil(Math.max(total * 2, (ceiling ?? 0) + 5))}
+                className="mt-1 w-32"
+              />
+            </label>
+            <SubmitButton size="sm">Approve and continue</SubmitButton>
+          </ActionForm>
+        </div>
       ) : null}
 
       <ol className="space-y-2">
-        {REVIEW_STEPS.map((name) => {
+        {steps.map((name) => {
           const step = latest.get(name);
           const attempts = job.steps.filter((s) => s.name === name).length;
           return (
@@ -100,7 +131,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                     {step.promptVersion ? ` · ${step.promptVersion}` : ""}
                   </span>
                 ) : null}
-                {!running && job.productId ? (
+                {!running && (job.productId || job.articleId) ? (
                   <form action={rerunJob} className="ml-auto flex items-center gap-2">
                     <input type="hidden" name="jobId" value={job.id} />
                     <input type="hidden" name="step" value={name} />

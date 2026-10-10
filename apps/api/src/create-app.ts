@@ -6,9 +6,13 @@ import { Scalar } from "@scalar/hono-api-reference";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { categoriesRoutes } from "./routes/categories";
+import { dealsRoutes } from "./routes/deals";
+import { guidesRoutes } from "./routes/guides";
 import { healthRoutes } from "./routes/health";
 import { productsRoutes } from "./routes/products";
 import { reviewsRoutes } from "./routes/reviews";
+import { searchRoutes } from "./routes/search";
+import { visitorRoutes } from "./routes/visitor";
 
 export type AppEnv = { Variables: { db: Database } };
 
@@ -49,7 +53,11 @@ export function createApp(options: CreateAppOptions) {
   app.route("/v1", healthRoutes);
   app.route("/v1", categoriesRoutes);
   app.route("/v1", reviewsRoutes);
+  app.route("/v1", guidesRoutes);
   app.route("/v1", productsRoutes);
+  app.route("/v1", searchRoutes);
+  app.route("/v1", dealsRoutes);
+  app.route("/v1", visitorRoutes);
 
   app.doc31("/openapi.json", {
     openapi: "3.1.0",

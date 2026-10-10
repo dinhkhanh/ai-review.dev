@@ -30,6 +30,15 @@ export interface RenderModel {
   /** "Report a change" link for pricing tables (FR-WEB-6). */
   reportHref?: string | null;
   disclosureHref?: string;
+  /** Uploaded videos for `video` blocks, keyed by `videos.id` (FR-VID-4). */
+  videos?: Record<string, RenderVideo>;
+}
+
+export interface RenderVideo {
+  title: string;
+  thumbnailUrl: string;
+  watchUrl: string;
+  vertical: boolean;
 }
 
 export function defaultGoHref(slug: string, placement: string) {

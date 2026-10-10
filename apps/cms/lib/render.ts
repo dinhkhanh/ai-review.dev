@@ -9,6 +9,8 @@ export function toPreviewModel(data: ArticleRenderData): RenderModel {
   if (data.product) products[data.product.id] = { name: data.product.name };
   for (const c of data.competitors)
     products[c.productId] = { name: c.name, href: c.reviewSlug ? `${site}/reviews/${c.reviewSlug}` : null };
+  for (const p of data.listProducts)
+    products[p.id] = { name: p.name, href: p.reviewSlug ? `${site}/reviews/${p.reviewSlug}` : null };
   return {
     blocks: data.version.blocks,
     media: Object.fromEntries(

@@ -5,16 +5,16 @@ Production infrastructure for ai-review.dev, provisioned 2026-10-10. Secrets liv
 
 ## Inventory
 
-| Resource | Where                                     | Identifier                                                            | Notes                                       |
-| -------- | ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------- |
-| Web      | Vercel, team SuZu Group                   | `ai-review-web` (root `apps/web`)                                     | Domain `ai-review.dev` attached             |
-| CMS      | Vercel, team SuZu Group                   | `ai-review-cms` (root `apps/cms`)                                     | Domain `admin.ai-review.dev` to add         |
-| API      | Vercel, team SuZu Group                   | `ai-review-api` (root `apps/api`, Hono preset)                        | Domain `api.ai-review.dev` attached         |
-| Database | Supabase org SuZu Group (Pro)             | project `ai-review`, ref `ludkxxthvuhjxurticyk`, us-east-1            | Postgres 17; pgvector via migration         |
-| Cache    | Upstash                                   | Redis `ai-review`, us-east-1, free plan                               | REST API used from Vercel functions         |
-| Media    | Cloudflare account tran@dinhkhanh.dk      | R2 bucket `ai-review-media` (ENAM)                                    | Public via r2.dev URL (custom domain later) |
-| Errors   | Sentry org `suzu-group`, team `ai-review` | `ai-review-web`, `ai-review-cms`, `ai-review-api`, `ai-review-worker` | DSNs set on the Vercel projects             |
-| Worker   | Trigger.dev                               | project ref in `TRIGGER_PROJECT_REF`                                  | Tasks `review-product`, `publish-scheduled` |
+| Resource | Where                                     | Identifier                                                            | Notes                                                     |
+| -------- | ----------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
+| Web      | Vercel, team SuZu Group                   | `ai-review-web` (root `apps/web`)                                     | Domain `ai-review.dev` attached                           |
+| CMS      | Vercel, team SuZu Group                   | `ai-review-cms` (root `apps/cms`)                                     | Domain `admin.ai-review.dev` to add                       |
+| API      | Vercel, team SuZu Group                   | `ai-review-api` (root `apps/api`, Hono preset)                        | Domain `api.ai-review.dev` attached                       |
+| Database | Supabase org SuZu Group (Pro)             | project `ai-review`, ref `ludkxxthvuhjxurticyk`, us-east-1            | Postgres 17; pgvector via migration                       |
+| Cache    | Upstash                                   | Redis `ai-review`, us-east-1, free plan                               | REST API used from Vercel functions                       |
+| Media    | Cloudflare account tran@dinhkhanh.dk      | R2 bucket `ai-review-media` (ENAM)                                    | Public via r2.dev URL (custom domain later)               |
+| Errors   | Sentry org `suzu-group`, team `ai-review` | `ai-review-web`, `ai-review-cms`, `ai-review-api`, `ai-review-worker` | DSNs set on the Vercel projects                           |
+| Worker   | Trigger.dev                               | project ref in `TRIGGER_PROJECT_REF`                                  | Pipeline, video and the daily crons (see Phase 2 rollout) |
 
 Vercel functions run in `iad1`, next to the database. All three projects use Node 24, pnpm 11 via
 Corepack, and skip builds when their directory and dependencies did not change.
@@ -67,6 +67,43 @@ Phase 0 steps (database URLs, Upstash token, migrate/seed, domains) are done. Fo
 7. **Preview database (optional).** Preview builds still fail without a preview `DATABASE_URL`.
 8. **CI remote cache (optional).** Create a Vercel access token, add it as the `TURBO_TOKEN`
    repository secret and set the `TURBO_TEAM` repository variable to `suzu-group`.
+
+## Phase 2 rollout (owner)
+
+Every Phase 2 feature is optional and stays off (or degrades gracefully) until its keys exist.
+
+1. **Migrate and seed** (migration `0005_phase2_foundation`; seed adds the new settings keys and keeps
+   existing values):
+   ```sh
+   node scripts/prod.mjs db:migrate
+   node scripts/prod.mjs db:seed
+   ```
+2. **Fill the Phase 2 values you want** in `.env.production.local` (section "Phase 2" of
+   `.env.production.example`), then `node scripts/prod.mjs env:check` and `env:push`:
+   - Notifications: `RESEND_API_KEY` + `NOTIFY_EMAIL_FROM` (verified sender), and/or
+     `NOTIFY_WEBHOOK_URL` (Slack incoming webhook), `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`.
+     Recipients are set in CMS Settings (`notifications.recipients`).
+   - Turnstile: `TURNSTILE_SECRET_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (votes, reports, newsletter).
+   - Analytics: `PLAUSIBLE_API_KEY` (+ `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`) for page-view import.
+   - Networks: `IMPACT_ACCOUNT_SID`/`IMPACT_AUTH_TOKEN`, `PARTNERSTACK_API_KEY`,
+     `AWIN_API_TOKEN`/`AWIN_PUBLISHER_ID` for conversion sync. CSV import works without them.
+   - CMS media: the CMS now also gets the `R2_*` values so generated and processed images go to R2.
+   - Images: `FAL_KEY`. Sourcing: `PRODUCT_HUNT_TOKEN` (without it only Hacker News is used).
+   - Video: `ELEVENLABS_API_KEY`, `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and the refresh
+     token from `pnpm --filter worker youtube-auth` (Desktop OAuth client, YouTube Data API v3
+     enabled, sign in as the channel owner) as `YOUTUBE_REFRESH_TOKEN`.
+3. **Redeploy the worker** (`pnpm --filter worker run deploy`). It now prebuilds the Remotion bundle
+   and registers the new tasks: `refresh-scheduler`, `link-health`, `affiliate-reminders`,
+   `sync-conversions`, `import-page-views`, `product-sourcing`, `search-backfill`, `video-autogen`,
+   plus on-demand tasks the CMS triggers. Rendered videos need R2 (the DB fallback refuses files over
+   50 MB); the first render in a container downloads Chrome (~94 MB).
+4. **Redeploy web, CMS and API** (push to main). New routes: `/compare`, `/alternatives`, `/best`,
+   `/search`, `/deals`, `/newsletter/*`; API `/v1/guides`, `/v1/search`, `/v1/deals` and the visitor
+   write endpoints (API version 1.3.0).
+5. **Switch features on in CMS Settings** when ready: `sourcing.policy.enabled`,
+   `affiliate.catchAllFallback` (network + publisher id), `pipeline.videoEnabled` and
+   `video.settings`, auto-publish (`publishing.autoPublishCategories` and, deliberately,
+   `publishing.requireHumanReview = false`). Refresh and link health are on by default.
 
 ## How the pieces talk
 

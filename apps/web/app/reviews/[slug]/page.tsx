@@ -5,6 +5,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { ReviewExtras } from "../../../components/review-extras";
+import { DiscontinuedBanner } from "../../../components/discontinued-banner";
+import { ReviewVideos } from "../../../components/review-videos";
 import { directLinksFor } from "../../../lib/golinks";
 import { assetUrl } from "../../../lib/media";
 import { goHref, jsonLdScript, reviewJsonLd, toRenderModel } from "../../../lib/render";
@@ -58,7 +61,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ slug: s
   ]);
   const model = toRenderModel(data, { directLinks });
   const toc = tableOfContents(data.version.blocks);
-  const cta = data.version.blocks.find((b) => b.type === "cta");
+  const cta = data.product?.status === "discontinued" ? undefined : data.version.blocks.find((b) => b.type === "cta");
   const stickyHref = data.goSlug
     ? (directLinks[data.goSlug] ?? goHref(data.article.slug)(data.goSlug, "sticky_mobile"))
     : null;
@@ -109,9 +112,18 @@ export default async function ReviewPage({ params }: { params: Promise<{ slug: s
               </Link>
             </p>
           ) : null}
+          <DiscontinuedBanner data={data} />
           <div className="mt-6">
             <ArticleRenderer model={model} />
           </div>
+          <ReviewVideos articleId={data.article.id} title={data.article.title} />
+          <ReviewExtras
+            articleSlug={data.article.slug}
+            title={data.article.title}
+            productId={data.product?.id ?? null}
+            productName={data.product?.name ?? null}
+            goSlug={data.goSlug}
+          />
         </article>
         <aside className="hidden lg:block">
           <div className="sticky top-6 space-y-6">

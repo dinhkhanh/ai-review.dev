@@ -1,3 +1,5 @@
+import { unreadNotificationCount } from "@repo/core";
+import { getDb } from "@repo/db";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SignOutButton } from "../../components/sign-out-button";
@@ -8,11 +10,16 @@ export const dynamic = "force-dynamic";
 const NAV = [
   { href: "/", label: "Dashboard", adminOnly: false },
   { href: "/intake", label: "New review", adminOnly: false },
+  { href: "/suggestions", label: "Suggested products", adminOnly: false },
   { href: "/jobs", label: "Jobs", adminOnly: false },
   { href: "/articles", label: "Articles", adminOnly: false },
   { href: "/products", label: "Products", adminOnly: false },
   { href: "/affiliate", label: "Affiliate", adminOnly: false },
+  { href: "/deals", label: "Deals", adminOnly: false },
+  { href: "/analytics", label: "Analytics", adminOnly: false },
+  { href: "/media", label: "Media", adminOnly: false },
   { href: "/reports", label: "Visitor reports", adminOnly: false },
+  { href: "/notifications", label: "Notifications", adminOnly: false },
   { href: "/settings", label: "Settings", adminOnly: false },
   { href: "/audit", label: "Audit log", adminOnly: true },
 ];
@@ -20,6 +27,18 @@ const NAV = [
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
   const isAdmin = user.role === "admin";
+  const unread = await unreadNotificationCount(getDb()).catch(() => 0);
+  const label = (n: (typeof NAV)[number]) =>
+    n.href === "/notifications" && unread > 0 ? (
+      <>
+        {n.label}{" "}
+        <span className="ml-1 rounded-full bg-brand px-1.5 text-xs text-brand-fg" aria-label={`${unread} unread`}>
+          {unread}
+        </span>
+      </>
+    ) : (
+      n.label
+    );
   return (
     <div className="flex min-h-dvh">
       <aside className="hidden w-56 shrink-0 border-r border-border bg-bg p-4 md:block">
@@ -27,7 +46,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <nav className="mt-6 space-y-1" aria-label="Main">
           {NAV.filter((n) => isAdmin || !n.adminOnly).map((n) => (
             <Link key={n.href} href={n.href} className="block rounded-md px-2 py-1.5 text-sm hover:bg-surface">
-              {n.label}
+              {label(n)}
             </Link>
           ))}
         </nav>
@@ -48,7 +67,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         >
           {NAV.filter((n) => isAdmin || !n.adminOnly).map((n) => (
             <Link key={n.href} href={n.href} className="whitespace-nowrap hover:underline">
-              {n.label}
+              {label(n)}
             </Link>
           ))}
         </nav>

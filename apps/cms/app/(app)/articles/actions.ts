@@ -8,7 +8,8 @@ import {
   getArticle,
   getCurrentVersion,
   latestFactSheet,
-  listSources,
+  listSourcesForProducts,
+  articleProductIds,
   publishArticle,
   publishEnvFromProcess,
   recordAudit,
@@ -57,14 +58,14 @@ export async function saveBlocksAction(_prev: ActionState, form: FormData): Prom
   try {
     const article = await getArticle(db, articleId);
     const version = await getCurrentVersion(db, articleId);
-    if (!article?.productId || !version) throw new DomainError("not_found", "Article not found");
+    if (!article || !version) throw new DomainError("not_found", "Article not found");
     if (String(form.get("baseVersionId")) !== version.id) {
       return {
         ok: false,
         message: "A newer version exists (someone or the pipeline saved meanwhile). Reload before editing.",
       };
     }
-    const refs = sourceRefs(await listSources(db, article.productId));
+    const refs = sourceRefs(await listSourcesForProducts(db, articleProductIds(article)));
     const { blocks, changed } = applyEditorForm(version.blocks, form, refs);
     if (changed.length === 0) return { ok: true, message: "No changes" };
     // Human edits are the editor's responsibility: drop fact-check findings for edited blocks.

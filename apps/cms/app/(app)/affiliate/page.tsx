@@ -1,9 +1,12 @@
-import { clickSummary, listPrograms, recentClicks } from "@repo/core";
+import { clickSummary, listLinkHealth, listPrograms, recentClicks } from "@repo/core";
 import { getDb } from "@repo/db";
 import { Button } from "@repo/ui/button";
 import Link from "next/link";
+import { ActionForm } from "../../../components/action-form";
+import { SubmitButton } from "../../../components/submit-button";
 import { Empty, fmtDate, PageHeader, StatusBadge, Table, Tabs } from "../../../components/ui";
 import { setProgramStatusAction } from "../products/actions";
+import { checkAllLinksAction, checkLinkNowAction } from "./actions";
 
 export const metadata = { title: "Affiliate" };
 
@@ -13,13 +16,15 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 3600 * 1000);
 export default async function AffiliatePage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const { view = "apply" } = await searchParams;
   const db = getDb();
-  const [toApply, pending, active, summary, clicks] = await Promise.all([
+  const [toApply, pending, active, summary, clicks, health] = await Promise.all([
     listPrograms(db, { statuses: ["found"] }),
     listPrograms(db, { statuses: ["applied", "approved"] }),
     listPrograms(db, { statuses: ["active", "paused"] }),
     clickSummary(db, daysAgo(30)),
     recentClicks(db, 50),
+    listLinkHealth(db),
   ]);
+  const failing = health.filter((l) => l.status === "broken" || l.healthFailures > 0).length;
   const rows = view === "apply" ? toApply : view === "pending" ? pending : active;
   return (
     <div className="space-y-6">
@@ -31,9 +36,64 @@ export default async function AffiliatePage({ searchParams }: { searchParams: Pr
           { key: "pending", label: "Applied / approved", href: "/affiliate?view=pending", count: pending.length },
           { key: "active", label: "Active", href: "/affiliate?view=active", count: active.length },
           { key: "clicks", label: "Clicks", href: "/affiliate?view=clicks" },
+          { key: "health", label: "Link health", href: "/affiliate?view=health", count: failing },
         ]}
       />
-      {view !== "clicks" ? (
+      {view === "health" ? (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <p className="max-w-2xl text-sm text-muted">
+              Every active and pending link is followed daily. Links that fail the configured number of checks in a row
+              are paused as broken and the go-link falls back to the next link or the vendor URL. Re-activate a fixed
+              link on its product page.
+            </p>
+            <ActionForm action={checkAllLinksAction}>
+              <SubmitButton size="sm" variant="secondary" pendingLabel="Checking…">
+                Check all links now
+              </SubmitButton>
+            </ActionForm>
+          </div>
+          {health.length ? (
+            <Table head={["Product", "Link", "Status", "Last check", "Result", ""]}>
+              {health.map((l) => (
+                <tr key={l.id} className="border-t border-border align-top">
+                  <td className="p-3">
+                    <Link href={`/products/${l.productId}?tab=affiliate`} className="font-medium hover:underline">
+                      {l.productName}
+                    </Link>
+                  </td>
+                  <td className="max-w-xs p-3">
+                    {l.label}
+                    <p className="break-all font-mono text-xs text-muted">{l.destinationUrl}</p>
+                  </td>
+                  <td className="p-3">
+                    <StatusBadge status={l.status} />
+                    {l.healthFailures > 0 ? (
+                      <p className="mt-1 text-xs text-danger">{l.healthFailures} failed in a row</p>
+                    ) : null}
+                  </td>
+                  <td className="p-3 tabular-nums">{fmtDate(l.lastHealthCheckAt)}</td>
+                  <td className="max-w-md p-3 text-xs">
+                    {l.healthDetail ?? "—"}
+                    {l.finalUrl ? <p className="mt-1 break-all text-muted">→ {l.finalUrl}</p> : null}
+                  </td>
+                  <td className="p-3">
+                    <form action={checkLinkNowAction}>
+                      <input type="hidden" name="linkId" value={l.id} />
+                      <input type="hidden" name="productId" value={l.productId} />
+                      <Button type="submit" size="sm" variant="ghost">
+                        Check now
+                      </Button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : (
+            <Empty>No affiliate links yet.</Empty>
+          )}
+        </section>
+      ) : view !== "clicks" ? (
         rows.length ? (
           <Table head={["Product", "Program", "Network", "Commission", "Status", "Sign up", ""]}>
             {rows.map(({ program: p, productName }) => (

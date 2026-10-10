@@ -1,5 +1,12 @@
 import { extractClaims, type ArticleBody } from "@repo/content";
-import { addArticleVersion, getArticle, getCurrentVersion, listSources, sourceRefs } from "@repo/core";
+import {
+  addArticleVersion,
+  articleProductIds,
+  getArticle,
+  getCurrentVersion,
+  listSourcesForProducts,
+  sourceRefs,
+} from "@repo/core";
 import { z } from "zod";
 import { applyLines, blockToLines, isEditable } from "../article-lines";
 import { bestWindow, buildReport, fixSchema, gatherEvidence, toChecked, verifyClaims } from "../fact-check-core";
@@ -25,12 +32,13 @@ export const factCheckStep = defineStep({
   async run(ctx, input) {
     const article = await getArticle(ctx.db, input.articleId);
     const version = await getCurrentVersion(ctx.db, input.articleId);
-    if (!article?.productId || !version) throw new Error("Article or version not found");
-    const sources = await listSources(ctx.db, article.productId);
+    const productIds = article ? articleProductIds(article) : [];
+    if (!article || !productIds.length || !version) throw new Error("Article or version not found");
+    const sources = await listSourcesForProducts(ctx.db, productIds);
     const refs = sourceRefs(sources);
 
     const claims = extractClaims(version.blocks);
-    const evidence = await gatherEvidence(ctx, article.productId, claims);
+    const evidence = await gatherEvidence(ctx, productIds, claims);
     const verdicts = await verifyClaims(ctx, claims, evidence, refs);
     let checked = toChecked(claims, verdicts, refs);
     ctx.log("first pass", { claims: claims.length, problems: checked.filter((c) => c.verdict !== "supported").length });
@@ -77,7 +85,7 @@ export const factCheckStep = defineStep({
       });
       // Re-verify only the repaired blocks.
       const recheck = extractClaims(blocks.filter((b) => fixedIds.has(b.id)));
-      const recheckEvidence = await gatherEvidence(ctx, article.productId, recheck);
+      const recheckEvidence = await gatherEvidence(ctx, productIds, recheck);
       const recheckVerdicts = await verifyClaims(ctx, recheck, recheckEvidence, refs);
       checked = [
         ...checked.filter((c) => !fixedIds.has(c.blockId)),

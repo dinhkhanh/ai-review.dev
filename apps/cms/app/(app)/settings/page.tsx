@@ -29,7 +29,38 @@ const INTEGRATIONS: Array<{ label: string; vars: string[] }> = [
   },
   { label: "Web revalidation", vars: ["REVALIDATE_SECRET", "NEXT_PUBLIC_SITE_URL"] },
   { label: "Sentry", vars: ["SENTRY_DSN"] },
+  { label: "Notification email (Resend)", vars: ["RESEND_API_KEY", "NOTIFY_EMAIL_FROM"] },
+  { label: "Notification webhook (Slack)", vars: ["NOTIFY_WEBHOOK_URL"] },
+  { label: "Notification Telegram bot", vars: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] },
+  { label: "Generative images (fal.ai)", vars: ["FAL_KEY"] },
 ];
+
+/** One line per setting so the JSON editors are self-explanatory. */
+const SETTING_HELP: Record<string, string> = {
+  "publishing.dailyCap":
+    "Most first publications per UTC day (NFR-10). Auto-published articles over the cap are scheduled.",
+  "publishing.requireHumanReview":
+    "Global switch. While true, nothing is auto-published, whatever the categories below say (D-3).",
+  "publishing.autoPublishCategories":
+    "Category slugs whose articles may publish without review when all hard gates pass (FR-QA-4).",
+  "publishing.autoPublish": "minSoftScore: share of soft QA checks (0–1) an article needs to auto-publish.",
+  "affiliate.catchAllFallback":
+    'Wrap vendor fallbacks in a catch-all network: network "skimlinks" or "sovrn" plus your publisherId (FR-AFF-5).',
+  "costs.defaultCeilingUsd":
+    "Jobs without their own ceiling pause for approval above this spend (FR-INT-6). null = none.",
+  "costs.targetPerReviewUsd":
+    "Cost targets per review; a job above target × alertMultiplier sends a cost alert (NFR-6).",
+  "refresh.policy":
+    "Refresh scheduler (FR-MNT-1): product interval (default 60 days), top-traffic interval and threshold, jobs per daily run.",
+  "linkHealth.policy": "Daily link check (FR-AFF-10): consecutive failures before a link is paused as broken.",
+  "notifications.recipients": "Email addresses that receive notification emails (FR-CMS-8).",
+  "notifications.events":
+    'Per-event channel overrides, e.g. {"job.succeeded": {"email": false, "webhook": true}}. See the Notifications page for event names.',
+  "sourcing.policy":
+    "Product sourcing cron (FR-INT-7): set enabled to true to fill Suggested products daily. Product Hunt needs PRODUCT_HUNT_TOKEN.",
+  "video.settings": "Video pipeline (FR-VID): voice, kinds, YouTube privacy and auto-generation after first publish.",
+  "pipeline.videoEnabled": "Master switch for the video pipeline (D-5).",
+};
 
 const area = "w-full rounded-md border border-border bg-bg p-2 font-mono text-xs";
 
@@ -56,6 +87,7 @@ export default async function SettingsPage({
           { key: "rubrics", label: "Rubrics", href: "/settings?tab=rubrics" },
           { key: "authors", label: "Authors", href: "/settings?tab=authors" },
           { key: "integrations", label: "Integrations", href: "/settings?tab=integrations" },
+          { key: "evals", label: "Prompt evals", href: "/settings/evals" },
         ]}
       />
 
@@ -71,6 +103,7 @@ export default async function SettingsPage({
               >
                 <input type="hidden" name="key" value={key} />
                 <Label className="font-mono">{key}</Label>
+                {SETTING_HELP[key] ? <p className="text-xs text-muted">{SETTING_HELP[key]}</p> : null}
                 <textarea
                   name="value"
                   defaultValue={value}

@@ -4,12 +4,16 @@ import type { z } from "zod";
 import { articleDraftSchema } from "../src/article-builder";
 import { fixSchema, verdictSchema } from "../src/fact-check-core";
 import { sectionSchema } from "../src/section";
+import { classificationSchema } from "../src/sourcing/classify";
 import { programDraftSchema } from "../src/steps/affiliate-discovery";
 import { competitorDraftSchema } from "../src/steps/competitors";
+import { derivativeDraftSchema } from "../src/steps/derivatives";
 import { sourceExtractionSchema } from "../src/steps/extract-facts";
 import { factSheetDraftSchema } from "../src/steps/fact-sheet";
 import { resolvedSchema } from "../src/steps/resolve-product";
+import { socialDraftSchema } from "../src/steps/social";
 import { styleSchema } from "../src/steps/style-pass";
+import { videoScriptDraftSchema } from "../src/video/script";
 
 /**
  * Sends each model-facing schema with a tiny prompt so the API compiles its grammar. Catches
@@ -29,6 +33,10 @@ const schemas: Array<[string, z.ZodType, string]> = [
   ["fact_fix", fixSchema, MODELS.opus],
   ["style_pass", styleSchema, MODELS.sonnet],
   ["section_regenerate", sectionSchema, MODELS.opus],
+  ["product_sourcing", classificationSchema, MODELS.haiku],
+  ["video_script", videoScriptDraftSchema, MODELS.sonnet],
+  ["derivative_write", derivativeDraftSchema, MODELS.opus],
+  ["social", socialDraftSchema, MODELS.sonnet],
 ];
 let failed = 0;
 for (const [name, schema, model] of schemas) {

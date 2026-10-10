@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import Script from "next/script";
 import type { ReactNode } from "react";
+import { NewsletterForm } from "../components/newsletter-form";
+import { SearchBox } from "../components/search-box";
 import { SITE } from "../lib/site";
 import { STATIC_PAGES } from "../lib/static-pages";
 import "./globals.css";
@@ -46,6 +48,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <Link href="/reviews" className="hover:underline">
                 Reviews
               </Link>
+              <Link href="/compare" className="hidden hover:underline sm:inline">
+                Compare
+              </Link>
+              <Link href="/deals" className="hover:underline">
+                Deals
+              </Link>
+              <SearchBox />
               <Link href="/editorial-policy" className="hidden hover:underline sm:inline">
                 How we review
               </Link>
@@ -55,7 +64,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <main id="main">{children}</main>
         <footer className="mt-24 border-t border-border pb-20 md:pb-0">
           <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-muted">
-            <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2">
+            <NewsletterForm />
+            <nav aria-label="Footer" className="mt-8 flex flex-wrap gap-x-5 gap-y-2">
               {STATIC_PAGES.map((p) => (
                 <Link key={p.path} href={p.path} className="hover:underline">
                   {p.title}

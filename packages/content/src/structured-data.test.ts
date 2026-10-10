@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReviewStructuredData, factSheetSchema, validateStructuredData } from "./index";
+import { buildReviewStructuredData, factSheetSchema, isoDuration, validateStructuredData } from "./index";
 
 const factSheet = factSheetSchema.parse({
   name: "Notion",
@@ -67,5 +67,29 @@ describe("structured data", () => {
     });
     const [app] = buildReviewStructuredData({ ...input, factSheet: freeOnly });
     expect(app!.offers).toEqual({ "@type": "Offer", price: 0, priceCurrency: "USD" });
+  });
+  it("adds a valid VideoObject per uploaded video (FR-VID-4)", () => {
+    const objects = buildReviewStructuredData({
+      ...input,
+      videos: [
+        {
+          name: "Notion review",
+          description: "Our verdict in 90 seconds.",
+          thumbnailUrl: "https://i.ytimg.com/vi/abc/hqdefault.jpg",
+          uploadDate: new Date("2026-10-11T00:00:00Z"),
+          embedUrl: "https://www.youtube-nocookie.com/embed/abc",
+          watchUrl: "https://www.youtube.com/shorts/abc",
+          durationSeconds: 95,
+        },
+      ],
+    });
+    const video = objects.find((o) => o["@type"] === "VideoObject");
+    expect(video).toMatchObject({ duration: "PT1M35S", uploadDate: "2026-10-11T00:00:00.000Z" });
+    expect(validateStructuredData(objects)).toEqual([]);
+    expect(isoDuration(60)).toBe("PT1M");
+    expect(isoDuration(9)).toBe("PT9S");
+    expect(validateStructuredData([...objects, { "@type": "VideoObject", name: "x" }])).toContain(
+      "VideoObject needs name, description, thumbnailUrl and uploadDate",
+    );
   });
 });
