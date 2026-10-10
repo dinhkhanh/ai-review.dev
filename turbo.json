@@ -1,11 +1,38 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalDependencies": [".env"],
+  "globalEnv": ["NODE_ENV"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**"],
+      "env": [
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "ANTHROPIC_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "VOYAGE_API_KEY",
+        "TRIGGER_PROJECT_REF",
+        "TRIGGER_SECRET_KEY",
+        "UPSTASH_REDIS_REST_URL",
+        "UPSTASH_REDIS_REST_TOKEN",
+        "R2_ACCOUNT_ID",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET",
+        "REVALIDATE_SECRET",
+        "SENTRY_DSN",
+        "SKIP_ENV_VALIDATION",
+        "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_CMS_URL",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_MEDIA_URL",
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "VERCEL"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]
@@ -13,9 +40,40 @@
     "check-types": {
       "dependsOn": ["^check-types"]
     },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["coverage/**"],
+      "env": ["TEST_DATABASE_URL", "DATABASE_URL"]
+    },
     "dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["PORT"]
+    },
+    "db:generate": {
+      "cache": false
+    },
+    "db:migrate": {
+      "cache": false,
+      "env": ["DATABASE_URL"]
+    },
+    "db:seed": {
+      "cache": false,
+      "dependsOn": ["db:migrate"],
+      "env": [
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "SEED_ADMIN_EMAIL",
+        "SEED_ADMIN_PASSWORD",
+        "NEXT_PUBLIC_CMS_URL"
+      ]
+    },
+    "db:studio": {
       "cache": false,
       "persistent": true
     }
-  }
+  },
+  "globalPassThroughEnv": ["ENABLE_EXPERIMENTAL_COREPACK"]
 }

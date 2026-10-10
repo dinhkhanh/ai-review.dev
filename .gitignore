@@ -36,3 +36,12 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Next.js generated types
+next-env.d.ts
+
+# Trigger.dev
+.trigger
+
+# TypeScript
+*.tsbuildinfo

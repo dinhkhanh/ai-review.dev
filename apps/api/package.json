@@ -1,0 +1,35 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/node-server.ts",
+    "build": "tsup",
+    "start": "node --env-file-if-exists=../../.env dist/node-server.js",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "openapi": "tsx --env-file-if-exists=../../.env src/scripts/print-openapi.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.4",
+    "@hono/zod-openapi": "1.6.3",
+    "@repo/contracts": "workspace:*",
+    "@repo/core": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@scalar/hono-api-reference": "0.12.11",
+    "hono": "4.13.13",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "26.6.4",
+    "eslint": "10.9.1",
+    "tsup": "8.5.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

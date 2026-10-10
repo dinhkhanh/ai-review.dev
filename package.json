@@ -5,8 +5,17 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "test": "turbo run test",
+    "check-types": "turbo run check-types",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\"",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "db:generate": "turbo run db:generate --filter=@repo/db",
+    "db:migrate": "turbo run db:migrate --filter=@repo/db",
+    "db:seed": "turbo run db:seed --filter=@repo/db",
+    "db:studio": "turbo run db:studio --filter=@repo/db",
+    "setup": "node scripts/setup.mjs"
   },
   "devDependencies": {
     "prettier": "3.9.6",

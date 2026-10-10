@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: aireview
+          POSTGRES_PASSWORD: aireview
+          POSTGRES_DB: aireview
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aireview -d aireview"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    env:
+      DATABASE_URL: postgres://aireview:aireview@localhost:5432/aireview
+      TEST_DATABASE_URL: postgres://aireview:aireview@localhost:5432/aireview_test
+      BETTER_AUTH_SECRET: ci-only-not-a-real-secret-0123456789abcdef
+      BETTER_AUTH_URL: http://localhost:3001
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_CMS_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3002
+      # Optional Vercel Remote Cache (docs: turbo guides/ci-vendors/github-actions). Unset = local cache only.
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prepare databases
+        env:
+          PGPASSWORD: aireview
+        run: psql -h localhost -U aireview -d aireview -c "create database aireview_test"
+
+      # The web home page is prerendered at build time and reads categories.
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+
+      - run: pnpm format:check
+      - run: pnpm turbo run lint check-types test build

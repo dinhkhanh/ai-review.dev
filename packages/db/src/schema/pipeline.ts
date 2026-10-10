@@ -1,0 +1,143 @@
+import {
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  boolean,
+} from "drizzle-orm/pg-core";
+import { id, timestamps } from "./_shared";
+import { products } from "./catalog";
+
+export const jobPreset = pgEnum("job_preset", [
+  "full_review",
+  "quick_review",
+  "comparison",
+  "alternatives",
+  "best_of",
+  "refresh",
+]);
+export const jobStatus = pgEnum("job_status", [
+  "queued",
+  "running",
+  "awaiting_approval",
+  "succeeded",
+  "failed",
+  "cancelled",
+]);
+export const stepStatus = pgEnum("step_status", ["pending", "running", "succeeded", "failed", "skipped", "stale"]);
+export const suggestionStatus = pgEnum("suggestion_status", ["new", "accepted", "dismissed"]);
+
+export const reviewJobs = pgTable(
+  "review_jobs",
+  {
+    id: id(),
+    productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
+    preset: jobPreset("preset").notNull(),
+    status: jobStatus("status").notNull().default("queued"),
+    /** Raw intake (FR-INT-1): name, url, angle, keywords, competitors... */
+    input: jsonb("input").$type<Record<string, unknown>>().notNull(),
+    requestedByUserId: text("requested_by_user_id"),
+    costCeilingUsd: numeric("cost_ceiling_usd", { precision: 12, scale: 6 }),
+    totalCostUsd: numeric("total_cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    /** Orchestrator run id (Trigger.dev) for deep links from the CMS. */
+    runId: text("run_id"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    error: text("error"),
+    ...timestamps(),
+  },
+  (t) => [index("review_jobs_status_idx").on(t.status), index("review_jobs_product_idx").on(t.productId)],
+);
+
+export const jobSteps = pgTable(
+  "job_steps",
+  {
+    id: id(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => reviewJobs.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    attempt: integer("attempt").notNull().default(1),
+    status: stepStatus("status").notNull().default("pending"),
+    input: jsonb("input"),
+    output: jsonb("output"),
+    model: text("model"),
+    effort: text("effort"),
+    promptVersion: text("prompt_version"),
+    tokensIn: integer("tokens_in").notNull().default(0),
+    tokensOut: integer("tokens_out").notNull().default(0),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    ...timestamps(),
+  },
+  // Idempotency key (NFR-4): a step never runs twice for the same (job, name, attempt).
+  (t) => [uniqueIndex("job_steps_job_name_attempt_uq").on(t.jobId, t.name, t.attempt)],
+);
+
+/** Every paid API call (constraint C-4, FR-ANL-3). */
+export const costLedger = pgTable(
+  "cost_ledger",
+  {
+    id: id(),
+    jobId: uuid("job_id").references(() => reviewJobs.id, { onDelete: "set null" }),
+    stepId: uuid("step_id").references(() => jobSteps.id, { onDelete: "set null" }),
+    provider: text("provider").notNull(),
+    model: text("model"),
+    operation: text("operation").notNull(),
+    units: numeric("units", { precision: 14, scale: 2 }).notNull(),
+    unitType: text("unit_type").notNull(),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull(),
+    meta: jsonb("meta").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("cost_ledger_job_idx").on(t.jobId), index("cost_ledger_created_idx").on(t.createdAt)],
+);
+
+/** Versioned prompts (constraint C-5). Repo files are the default; DB rows are CMS edits. */
+export const promptTemplates = pgTable(
+  "prompt_templates",
+  {
+    id: id(),
+    key: text("key").notNull(),
+    version: integer("version").notNull(),
+    body: text("body").notNull(),
+    modelDefault: text("model_default"),
+    effortDefault: text("effort_default"),
+    active: boolean("active").notNull().default(false),
+    notes: text("notes"),
+    createdByUserId: text("created_by_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("prompt_templates_key_version_uq").on(t.key, t.version)],
+);
+
+/** Product sourcing queue (FR-INT-7). */
+export const productSuggestions = pgTable(
+  "product_suggestions",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    domain: text("domain").notNull(),
+    categorySlug: text("category_slug"),
+    source: text("source").notNull(),
+    /** Expected-value score used for ranking; higher first. */
+    score: numeric("score", { precision: 8, scale: 3 }).notNull().default("0"),
+    signals: jsonb("signals").$type<Record<string, unknown>>().notNull().default({}),
+    status: suggestionStatus("status").notNull().default("new"),
+    jobId: uuid("job_id").references(() => reviewJobs.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("product_suggestions_domain_uq").on(t.domain),
+    index("product_suggestions_status_score_idx").on(t.status, t.score),
+  ],
+);

@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+**/drizzle/meta/**
+**/.next/**
+**/dist/**
+**/.turbo/**
+**/.trigger/**
+.agents/
+.claude/
+AGENTS.md

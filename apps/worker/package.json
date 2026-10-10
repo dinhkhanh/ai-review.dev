@@ -1,0 +1,33 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "deploy": "trigger deploy",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke": "tsx --env-file-if-exists=../../.env scripts/smoke.ts"
+  },
+  "dependencies": {
+    "@repo/ai": "workspace:*",
+    "@repo/core": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/pipeline": "workspace:*",
+    "@trigger.dev/sdk": "4.7.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@trigger.dev/build": "4.7.3",
+    "@types/node": "26.6.4",
+    "eslint": "10.9.1",
+    "trigger.dev": "4.7.3",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3",
+    "tsx": "4.23.15"
+  }
+}
