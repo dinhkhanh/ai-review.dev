@@ -19,10 +19,12 @@ export interface OgImageInput {
 
 export const OG_WIDTH = 1200;
 export const OG_HEIGHT = 630;
+/** Layout stays at 1200×630; the PNG is rasterized at this multiple so text stays sharp on hi-DPI cards. */
+export const OG_SCALE = 2;
 
 /**
  * Deterministic, brand-consistent Open Graph image (FR-MED-1). No generative model involved.
- * Returns PNG bytes; the caller uploads to R2 and records a media asset.
+ * Returns PNG bytes at OG_SCALE × the layout size; the caller uploads to R2 and records a media asset.
  */
 export async function renderOgImage(input: OgImageInput): Promise<{ png: Buffer; svg: string }> {
   const c = tokens.color.dark;
@@ -86,6 +88,6 @@ export async function renderOgImage(input: OgImageInput): Promise<{ png: Buffer;
     </div>,
     { width: OG_WIDTH, height: OG_HEIGHT, fonts: await loadFonts(), debug: input.debug ?? false },
   );
-  const png = new Resvg(svg, { fitTo: { mode: "width", value: OG_WIDTH } }).render().asPng();
+  const png = new Resvg(svg, { fitTo: { mode: "width", value: OG_WIDTH * OG_SCALE } }).render().asPng();
   return { png: Buffer.from(png), svg };
 }
