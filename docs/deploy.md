@@ -34,8 +34,10 @@ data. Preview builds of web and cms fail until a separate preview database exist
 ## Remaining steps (owner)
 
 1. **Database URLs.** Supabase dashboard -> project `ai-review` -> Connect. Copy the
-   _Transaction pooler_ URI into `DATABASE_URL` and the _Session pooler_ URI into
-   `DATABASE_URL_MIGRATIONS` in `.env.production.local`. Use "Reset database password" there if
+   **Shared Pooler** URIs (host `aws-0-us-east-1.pooler.supabase.com`, user `postgres.<ref>`):
+   transaction mode (port 6543) into `DATABASE_URL`, session mode (port 5432) into
+   `DATABASE_URL_MIGRATIONS` in `.env.production.local`. Do not use the `db.<ref>.supabase.co`
+   host: it is IPv6-only and Vercel cannot reach it. Use "Reset database password" there if
    you do not have it.
 2. **Upstash token.** Upstash console -> `ai-review` -> REST API -> copy the token into
    `UPSTASH_REDIS_REST_TOKEN`.
