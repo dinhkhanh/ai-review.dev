@@ -1,0 +1,278 @@
+# AI Review — Technical Plan
+
+Companion to `docs/srs.md`. This document records the architecture, the stack decisions (with the alternatives rejected), the pipeline design, the cost model and the phased roadmap. Date: 2026-10-10.
+
+---
+
+## 1. Business model in one paragraph
+
+Visitors search "X review", "X pricing", "X vs Y", "best X for Z". We rank with trustworthy, evidence-backed, frequently refreshed reviews. Every page carries CTAs through our go-link redirect, which resolves to the best available affiliate link. Revenue grows with (a) number of indexed pages × (b) traffic per page × (c) click-through × (d) commission. The pipeline drives (a) at low marginal cost; quality gates and freshness protect (b); the affiliate engine maximises (c) and (d).
+
+---
+
+## 2. Monorepo layout
+
+```
+ai-review.dev/
+├── apps/
+│   ├── web/        Next.js (App Router) public site — ai-review.dev
+│   ├── cms/        Next.js admin — admin.ai-review.dev (auth, pipeline dashboard, editor, affiliate workspace)
+│   ├── api/        Hono + OpenAPI public/mobile REST API — api.ai-review.dev
+│   ├── worker/     Durable task runner: pipeline orchestration, renders, cron (health checks, refresh)
+│   └── mobile/     (phase 3) Expo / React Native
+├── packages/
+│   ├── db/         Drizzle schema, migrations, typed client, pgvector helpers
+│   ├── core/       Domain services (products, articles, affiliate, clicks, costs). No framework code.
+│   ├── pipeline/   Pipeline steps as pure async functions + versioned prompts + step contracts (Zod)
+│   ├── ai/         Provider adapters: llm (Anthropic), search/scrape (Firecrawl), embeddings, image, tts
+│   ├── affiliate/  Network modules, link template builder, redirect resolver, health checker
+│   ├── graphics/   Satori templates (OG, pricing card, pros/cons, score badge) → PNG/SVG
+│   ├── video/      Remotion compositions (short + long), caption renderer
+│   ├── content/    Block schema (portable JSON), renderers to React (web) and plain structures (API), schema.org builders
+│   ├── contracts/  Zod schemas + generated OpenAPI types + generated TS API client (shared with mobile)
+│   ├── ui/         Shared React components (shadcn/ui based), design tokens, Tailwind preset
+│   ├── eslint-config/, typescript-config/   (existing)
+└── docs/           srs.md, plan.md, adr/ (architecture decision records added as we go)
+```
+
+Dependency rule: `apps/* → packages/*`; `core → db`; `pipeline → ai, core, affiliate, graphics`; nothing imports from `apps/*`. Enforced with Turborepo boundaries / ESLint import rules.
+
+The create-turbo placeholders `apps/web` and `apps/docs` have already been deleted from the working tree; the apps above are scaffolded fresh.
+
+---
+
+## 3. Stack decisions
+
+| Area                   | Decision                                                                                                                                                                                                                                                                                                                                                            | Why                                                                                                                                                  | Rejected alternatives                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language / tooling     | TypeScript everywhere, pnpm 11, Turborepo 2.11, Node 24                                                                                                                                                                                                                                                                                                             | Already in repo; one language across web, API, worker, mobile.                                                                                       | —                                                                                                                                                                         |
+| Public web             | Next.js App Router on Vercel, static + ISR with tag-based revalidation                                                                                                                                                                                                                                                                                              | Best-in-class SEO primitives (metadata API, sitemaps, OG image generation), ISR gives cheap pages that survive backend outages.                      | Astro (great for static, weaker for CMS-driven revalidation and shared React with mobile tooling).                                                                        |
+| Admin CMS              | Custom Next.js app with shadcn/ui, TanStack Table/Query, Tiptap-based block editor                                                                                                                                                                                                                                                                                  | The core admin surface is a pipeline dashboard and a review queue, not generic content CRUD; a generic CMS would fight us.                           | Payload CMS 3 (excellent admin for free, but pipeline/QA UI would still be custom and it adds a second data model), Strapi, Directus.                                     |
+| Auth (admin)           | Better Auth with email+password, TOTP/passkey 2FA, roles                                                                                                                                                                                                                                                                                                            | Self-hosted, Next.js-native, no per-user pricing.                                                                                                    | Clerk (fine, paid), Auth.js (weaker 2FA story).                                                                                                                           |
+| API                    | Hono with `@hono/zod-openapi`, deployed as Node on Vercel (portable to Cloudflare Workers)                                                                                                                                                                                                                                                                          | Tiny, fast, generates the OpenAPI spec from the same Zod schemas the DB layer uses; typed client generated for mobile.                               | tRPC (no OpenAPI without extra tooling; mobile wants REST), Next route handlers only (ties API to the web deploy).                                                        |
+| Worker / orchestration | **Trigger.dev v4** tasks in `apps/worker`; steps are plain functions in `packages/pipeline` so the orchestrator is swappable                                                                                                                                                                                                                                        | Durable, long-running (hours), per-step retries, concurrency limits, cron, run dashboard, no server to babysit; supports ffmpeg/Playwright/Remotion. | BullMQ + Redis on a container (cheaper at scale, more ops; keep as the exit path), Inngest (step time limits on Vercel hurt video), Temporal (overkill for one operator). |
+| Database               | Postgres on Supabase with pgvector; Drizzle ORM + drizzle-kit migrations                                                                                                                                                                                                                                                                                            | Managed Postgres, pgvector for research chunks, Supabase plugin already connected; Drizzle keeps SQL explicit and types shared.                      | Neon (equally good; pick Supabase for Storage/Auth optionality), Prisma (heavier runtime).                                                                                |
+| Cache / rate limit     | Upstash Redis                                                                                                                                                                                                                                                                                                                                                       | Serverless-friendly; caches the go-link table and rate-limits public endpoints.                                                                      | Vercel KV (same thing, less portable).                                                                                                                                    |
+| Object storage         | Cloudflare R2 (S3 API) behind a CDN domain `media.ai-review.dev`                                                                                                                                                                                                                                                                                                    | Zero egress cost for images/video; account already present.                                                                                          | Supabase Storage (fine fallback), S3.                                                                                                                                     |
+| Click events           | Insert into Postgres via a queue (QStash or Trigger.dev event) from the redirect; monthly partitions                                                                                                                                                                                                                                                                | Simple, queryable with SQL, adequate up to millions of clicks/month.                                                                                 | ClickHouse/Tinybird (later if volume demands).                                                                                                                            |
+| LLM                    | Anthropic Claude via `@anthropic-ai/sdk`. Default `claude-opus-5-5` with adaptive thinking and per-step effort; `claude-haiku-5-5` for bulk extraction/classification; `claude-sonnet-5-5` for mid-tier steps; Batches API for refresh jobs (50 % off); prompt caching on the style guide + fact sheet prefix; structured outputs for fact sheets and rubric scores | Quality of long-form writing and fact-checking is the product; cost is controlled by routing cheap steps to Haiku and caching.                       | Multi-vendor routing from day one (adds eval burden; adapter leaves the door open).                                                                                       |
+| Web research           | Firecrawl (search, scrape → markdown, screenshots, maps) plus Claude's server-side `web_search`/`web_fetch` tools inside research agents                                                                                                                                                                                                                            | Firecrawl already connected; handles JS-rendered sites and returns clean markdown; Claude's tools complement for ad-hoc lookups.                     | Self-hosted Playwright for everything (needed anyway for hands-on in phase 3), SerpAPI.                                                                                   |
+| Embeddings             | Adapter; Voyage AI `voyage-3` family recommended                                                                                                                                                                                                                                                                                                                    | Strong retrieval quality, simple API.                                                                                                                | OpenAI embeddings (fine), pgvector-only keyword search (weaker).                                                                                                          |
+| Templated graphics     | Satori + resvg-js in the worker (and `next/og` for runtime OG fallback)                                                                                                                                                                                                                                                                                             | Deterministic, brand-consistent, free, fast.                                                                                                         | Headless Chrome screenshots of HTML (slower, heavier).                                                                                                                    |
+| Generative images      | Adapter decided in phase 2 (candidates: Flux via fal.ai, Recraft, Google Imagen, OpenAI gpt-image)                                                                                                                                                                                                                                                                  | Not needed for MVP; templated graphics + real screenshots rank better and are safer.                                                                 | —                                                                                                                                                                         |
+| TTS                    | Adapter; ElevenLabs (quality) or OpenAI TTS (price), word timestamps required                                                                                                                                                                                                                                                                                       | Captions need timestamps.                                                                                                                            | —                                                                                                                                                                         |
+| Video                  | Remotion compositions rendered in the worker (ffmpeg) or Remotion Lambda when parallelism is needed                                                                                                                                                                                                                                                                 | React-based, reuses `packages/ui` tokens, deterministic.                                                                                             | HeyGen/HyperFrames (hosted, less control), Creatomate.                                                                                                                    |
+| Email                  | Resend                                                                                                                                                                                                                                                                                                                                                              | Simple, generous free tier.                                                                                                                          | Postmark.                                                                                                                                                                 |
+| Analytics              | Plausible (public) + our click/conversion tables; PostHog optional for CMS funnels                                                                                                                                                                                                                                                                                  | Privacy-friendly, lightweight script.                                                                                                                | GA4 (consent friction, heavy).                                                                                                                                            |
+| Error tracking         | Sentry in all apps (MCP already connected)                                                                                                                                                                                                                                                                                                                          | —                                                                                                                                                    | —                                                                                                                                                                         |
+| CI/CD                  | GitHub Actions: lint, types, tests, build with Turborepo remote cache; Vercel preview deploys; Trigger.dev deploy on main                                                                                                                                                                                                                                           | —                                                                                                                                                    | —                                                                                                                                                                         |
+
+Decisions are recorded as ADRs in `docs/adr/` when implemented; this table is the index.
+
+---
+
+## 4. Runtime architecture
+
+```
+            ┌────────────────────────┐        ┌──────────────────────────┐
+ Visitor ──▶│ apps/web (Vercel, ISR) │──SSR──▶│ packages/core → Postgres │
+            │  /reviews /compare ... │        └──────────────────────────┘
+            │  /go/:slug (edge)      │──302──▶ affiliate URL   ─┐ click event
+            └────────────────────────┘                          ▼
+                     ▲ revalidateTag()                   queue → clicks table
+                     │
+            ┌────────────────────────┐   enqueue job    ┌──────────────────────────┐
+ Admin ────▶│ apps/cms (Vercel)      │─────────────────▶│ apps/worker (Trigger.dev)│
+            │  intake, review, links │◀── status/webhook│  pipeline steps, cron    │
+            └────────────────────────┘                  └───────┬──────────────────┘
+                                                                │ adapters (packages/ai, affiliate)
+                                                                ▼
+                                            Claude · Firecrawl · Voyage · TTS · R2 · YouTube · networks
+
+ Mobile (phase 3) ──▶ apps/api (Hono, OpenAPI) ──▶ packages/core → Postgres  (edge-cached by tag)
+```
+
+Key flows:
+
+**Publish**: admin approves → `core.articles.publish()` writes `published_at`, bumps `current_version_id`, emits `article.published` → web `revalidateTag(article:slug | category:x | home | sitemap)` + IndexNow ping + API cache purge.
+
+**Redirect**: `/go/:slug?p=cta_sticky` → read link table from Upstash (JSON per slug, TTL 60 s, refreshed on link change) → pick highest-priority `active` link for the country → render destination from the template with SubID `slug--placement` → 302 with `Cache-Control: no-store` → fire-and-forget click event. On cache miss, query Postgres; on any error, 302 to the vendor URL with UTM so the visitor never sees an error.
+
+**Pipeline run**: CMS inserts `review_jobs` + triggers `reviewProduct` task → task fans out steps (research and affiliate discovery in parallel) → each step writes `job_steps` + `cost_ledger` → final step sets article `in_review` and notifies admin.
+
+---
+
+## 5. Pipeline design
+
+| Step                                          | Inputs                                                            | Outputs                                                                    | Model / tool                                        | Effort | Notes                                                                    |
+| --------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------- | ------ | ------------------------------------------------------------------------ |
+| `resolve_product`                             | name/URL                                                          | canonical product record, candidate list                                   | Haiku 5.5 + Firecrawl search                        | low    | Dedup by domain + name similarity.                                       |
+| `crawl_official`                              | website_url                                                       | sources (markdown + screenshots) for ≤ 25 pages                            | Firecrawl map + scrape                              | —      | Prioritise pricing, features, docs, changelog, security.                 |
+| `collect_third_party`                         | product name, competitors                                         | sources from G2/Capterra/PH/Reddit/HN/YouTube/news                         | Firecrawl search + scrape; YouTube transcript fetch | —      | Store ratings with date. Respect robots.                                 |
+| `chunk_embed`                                 | sources                                                           | research_chunks with embeddings                                            | Voyage                                              | —      | ~800-token chunks, overlap 100.                                          |
+| `extract_facts`                               | per-source chunks                                                 | per-source structured extractions                                          | Haiku 5.5, structured outputs                       | low    | Parallel, cheap; this is where most tokens go.                           |
+| `fact_sheet`                                  | extractions                                                       | merged fact sheet with citations and confidence, diff vs previous          | Opus 5.5, structured outputs                        | high   | Conflicts resolved with recency + official-source preference.            |
+| `affiliate_discovery`                         | product, domain                                                   | programs found with terms, link format, redirect policy, draft application | Sonnet 5.5 + Firecrawl + network modules            | medium | Runs in parallel with research.                                          |
+| `competitors`                                 | fact sheet, sources                                               | 3–8 alternatives with positioning                                          | Sonnet 5.5                                          | medium | Links to existing products/articles when present.                        |
+| `seo_brief`                                   | fact sheet, SERP scrape of target queries, existing site articles | keywords, intent, title, slug, outline, FAQ, internal links                | Opus 5.5                                            | medium | Optional keyword API later (DataForSEO).                                 |
+| `write`                                       | fact sheet, brief, retrieved chunks, style guide (cached prefix)  | article blocks with claim→source citations, rubric scores                  | Opus 5.5, streaming                                 | high   | Section-by-section with a shared cached prefix; regenerable per section. |
+| `fact_check`                                  | article claims, cited chunk text                                  | per-claim verdicts; auto-fix suggestions                                   | Opus 5.5                                            | high   | Blocks publish on unsupported claims.                                    |
+| `style_pass`                                  | article                                                           | edited article + readability + banned-phrase report                        | Sonnet 5.5                                          | medium | Deterministic linters run first (reading level, length, clichés list).   |
+| `graphics`                                    | fact sheet, scores, brand tokens                                  | OG image, pricing card, pros/cons card, score badge, processed screenshots | Satori/resvg, sharp                                 | —      | Uploaded to R2 with variants; alt text via Haiku.                        |
+| `qa_gates`                                    | everything                                                        | scorecard JSON, hard-gate pass/fail                                        | code + Haiku for alt text/meta checks               | —      | Structured-data validation with schema-dts + Google's validator rules.   |
+| `human_review`                                | —                                                                 | approve / changes requested                                                | admin                                               | —      | Default mandatory.                                                       |
+| `publish`                                     | approved version                                                  | live page, sitemap, IndexNow, social snippets                              | code                                                | —      |                                                                          |
+| `video_script` → `tts` → `render` → `youtube` | approved article, assets                                          | MP4 short + long, thumbnail, YouTube ID                                    | Sonnet 5.5; TTS adapter; Remotion; YouTube API      | medium | Phase 2. Never blocks publish.                                           |
+| `refresh` (cron)                              | product                                                           | fact-sheet diff → partial re-write → in_review                             | as above                                            | —      | Phase 2; uses Batches API where latency is irrelevant.                   |
+| `link_health` (cron)                          | affiliate links                                                   | health status, auto-pause, notification                                    | code (HTTP follow)                                  | —      | Phase 2.                                                                 |
+
+Pipeline implementation rules:
+
+- A step is `async (ctx, input) => output` with Zod-validated input/output; the orchestrator (Trigger.dev task) handles retries, persistence and the ledger. Steps never call the DB directly except through `core`.
+- Prompts live in `packages/pipeline/prompts/<step>/vN.md` with front-matter (model default, effort, output schema ref). The CMS prompt editor writes new versions to the DB; the repo copy is the source of truth for defaults.
+- Every LLM call goes through `packages/ai/llm` which: sets `thinking: {type: "adaptive"}` (omitted on models where it is always on), sets `output_config.effort` per step, enables prompt caching on the stable prefix (style guide, rubric, fact sheet), records usage → `cost_ledger`, handles `stop_reason === "refusal"` and `max_tokens`, and uses streaming for long outputs.
+- Evals: `packages/pipeline/evals/` holds 10–20 golden products with expected fact-sheet fields and rubric ranges; run on prompt changes (phase 2, see risks).
+
+---
+
+## 6. Affiliate engine detail
+
+**Program discovery** (`affiliate_discovery` step): check `https://<domain>/{affiliates,affiliate,partners,partner-program,referral,refer}`; query networks' public directories; web-search `"<product>" affiliate program`; classify results into a `programs` record with evidence URLs. Output includes `link_format`, e.g. `{ kind: "query_param", param: "via", value_source: "account" }`, `{ kind: "network_deeplink", network: "impact" }`, or `{ kind: "static_url" }`.
+
+**Link template builder** (`packages/affiliate/links`): pure function `buildUrl(link, { subid, country })` that applies the program's format, appends SubID in the network's parameter (`subId1`, `sid`, `clickref`, `utm_content`, …), validates the result and never double-encodes. 100 % branch-tested.
+
+**Resolver** (`packages/affiliate/resolve`): `resolve(slug, country) → { url, linkId, programId, fallback: boolean }` using the cached link table; implements priority, weights (A/B), date windows, region, redirect policy, and the vendor-URL fallback.
+
+**Redirect endpoint**: `apps/web/app/go/[slug]/route.ts` on the edge runtime; emits the click event without awaiting persistence (`waitUntil`). Also mountable in `apps/api` for the mobile app. Bot filtering by UA list + rate heuristics at write time; `is_bot` kept rather than dropped.
+
+**Network modules** (phase 2): `partnerstack`, `impact`, `awin`, `cj`, `rewardful`, `firstpromoter`, `tolt`, `lemonsqueezy`, `skimlinks` each export `discover?`, `buildLink`, `importConversions?`, `healthRules`. Conversions are matched to clicks by SubID; unmatched rows are kept for manual mapping.
+
+**Compliance in code**: the block renderer wraps any URL that matches a go-slug or a known affiliate domain in `rel="sponsored nofollow noopener"` and injects the disclosure component on any page with ≥ 1 monetised link. Programs with `redirect_policy = forbidden` cause the renderer to emit the tracked URL directly (still logged via a `beacon` click event on the client).
+
+---
+
+## 7. Content model and mobile readiness
+
+Article `blocks` is a JSON array of typed blocks: `heading`, `paragraph` (rich inline marks incl. `citation` and `golink`), `verdict` (score, one-liner), `rubric` (dimensions), `pricing_table`, `pros_cons`, `comparison_table`, `image`, `video`, `faq`, `cta`, `callout`, `sources`. Web renders blocks with React components; the API returns blocks plus resolved media variants; the mobile app renders the same blocks natively. No HTML is ever stored.
+
+API versioning: `/v1` frozen once mobile ships; additive changes only; breaking changes go to `/v2`. The generated client in `packages/contracts` is what `apps/mobile` imports.
+
+Design tokens in `packages/ui/tokens` (colours, radii, type scale, spacing) are plain JSON consumed by Tailwind on web and by NativeWind/StyleSheet on mobile.
+
+---
+
+## 8. Cost model (rough, per article, 2026-10 list prices)
+
+| Item                                               | Assumption                                 | Cost       |
+| -------------------------------------------------- | ------------------------------------------ | ---------- |
+| Firecrawl crawl + search                           | ~60 pages, 10 searches                     | $0.30–0.60 |
+| Extraction (Haiku 5.5)                             | 400K input, 40K output                     | $0.06      |
+| Fact sheet + brief + write + fact-check (Opus 5.5) | ~180K input (60 % cache hits), ~30K output | $1.10–1.60 |
+| Style pass, competitors, discovery (Sonnet 5.5)    | 60K in, 10K out                            | $0.22      |
+| Embeddings                                         | 300K tokens                                | $0.02–0.06 |
+| Graphics, storage, worker compute                  | —                                          | $0.05–0.20 |
+| **Subtotal, quick review**                         |                                            | **≈ $2–3** |
+| TTS (10–12K characters)                            | provider dependent                         | $0.30–2.00 |
+| Video render compute + YouTube upload              | 2 renders                                  | $0.20–0.60 |
+| **Total, full review with video**                  |                                            | **≈ $3–6** |
+
+Fixed monthly at MVP scale: Vercel Pro $20, Supabase Pro $25, Trigger.dev free/hobby $0–50, Upstash ~$10, R2 <$5, Firecrawl plan $19–99, Resend $0, Plausible $9, Sentry $0–26 → roughly $85–245/month. Targets in SRS NFR-6 hold with margin.
+
+---
+
+## 9. Roadmap
+
+### Phase 0 — Foundation (week of 2026-10-13, ~1 week)
+
+- Scaffold `apps/web`, `apps/cms`, `apps/api`, `apps/worker`; packages `db`, `core`, `contracts`, `ui`, `ai`, `affiliate`, `pipeline`, `content`, `graphics`.
+- Drizzle schema v1 for all entities in SRS §6; migrations; seed script (categories seeded with the launch set: AI tools, marketing, developer tools, hosting/servers, productivity, new releases); pgvector enabled.
+- Better Auth in CMS with 2FA; roles; audit log.
+- Turborepo tasks (`build`, `dev`, `lint`, `check-types`, `test`, `db:migrate`), GitHub Actions CI, Vercel projects, Trigger.dev project, R2 bucket, Upstash DB, Sentry.
+- `packages/ai/llm` wrapper with usage ledger, caching, effort, refusal handling; `packages/ai/firecrawl` adapter.
+- Exit: `pnpm dev` runs all apps; CI green; admin can log in.
+
+### Phase 0 status (2026-10-10)
+
+Done and verified locally (lint, types, 40 tests, production builds, end-to-end HTTP checks of sign-in and 2FA):
+
+- Apps `web`, `cms`, `api`, `worker`; packages `db`, `core`, `ai`, `pipeline`, `content`, `affiliate`, `auth`, `contracts`, `graphics`, `ui`.
+- Full Drizzle schema for SRS §6 (32 tables) with pgvector HNSW index; migrations; idempotent seed (launch categories, D-1..D-8 settings, editor author, first admin).
+- Better Auth in the CMS: email + password (public sign-up off, 12+ chars, also enforced on admin routes), mandatory TOTP 2FA with backup codes, admin/editor roles, 12h sessions, audit log of sign-ins.
+- `@repo/ai`: Claude wrapper (streaming, per-step effort, cached system prompt, `fallbacks: "default"` on supported models, typed refusal/truncation errors, structured outputs, per-model cost incl. fallback iterations) and Firecrawl adapter, both reporting to the cost ledger.
+- `@repo/pipeline`: step contract + executor with Zod validation, idempotent attempts, failure recording and per-step cost attribution; `smoke` step and Trigger.dev `pipeline-smoke` task.
+- CI workflow (GitHub Actions, pgvector service, optional Remote Cache).
+
+Deviations from the plan above:
+
+- Trigger.dev is on v4 (current release), not v3.
+- Next.js 16 uses `proxy.ts` (formerly `middleware.ts`); the CMS uses it only for an optimistic cookie redirect. Authoritative checks run server-side.
+- The graphics package ships the OG renderer now; pricing/pros-cons cards follow in Phase 1.
+- Job and step cost columns are `numeric(12,6)` so sub-cent model calls are not rounded away.
+
+Hosted resources were provisioned on 2026-10-10 (inventory and remaining owner steps in `docs/deploy.md`):
+Vercel projects for web, cms and api; Supabase project `ai-review` (us-east-1); Upstash Redis; R2 bucket
+`ai-review-media`; Sentry projects. Live Claude and Firecrawl calls are verified. Still open: database
+and Upstash credentials on Vercel, two domains, the Trigger.dev project, R2 API token, Remote Cache token.
+
+### Phase 1 — MVP: URL in, monetised review out (2026-10-20 → 2026-11-14, ~4 weeks)
+
+- Intake UI + `resolve_product` + dedup (FR-INT-1/3/4/5).
+- Research: crawl, third-party collection, chunk/embed, extraction, fact sheet with citations (FR-RES-1..6, 8).
+- Affiliate discovery, programs/links CRUD, go-link redirect with fallback, click logging, auto-swap, redirect policy, disclosure enforcement (FR-AFF-1..4, 6..9, 14).
+- Writing: SEO brief, article blocks, rubric, citations, fact-check, style pass, versions (FR-CON-1..6, 9..11).
+- Graphics: OG, pricing card, pros/cons, badge, screenshot variants (FR-MED-1, 4, 5).
+- QA scorecard, review state machine, review UI with section regenerate (FR-QA-1..3, 5).
+- Web: home, category, review page, policy pages, ISR + revalidation, structured data, sitemaps, RSS, IndexNow, CTAs, consent, a11y (FR-WEB-1..6, 11, 12).
+- API v1 read endpoints + OpenAPI + generated client (FR-API-1, 2, 5).
+- CMS dashboard, job detail with retry/re-run, product record, settings with prompt versions (FR-CMS-1..5, 7).
+- Cost ledger + per-job totals (FR-ANL-3 ledger), Plausible (FR-ANL-1).
+- Exit: SRS §8 acceptance criteria pass on 5 real products across 2 categories.
+
+### Phase 2 — Scale and monetise harder (2026-11-17 → 2026-12-19, ~5 weeks)
+
+- Video pipeline: script, TTS, Remotion short + long, YouTube upload with disclosure flag, embed (FR-VID-1..5).
+- Derivative content: comparisons, alternatives, best-of, social snippets (FR-CON-8, FR-INT-5 presets, FR-WEB-1 remaining pages).
+- Network modules with deep-link APIs and conversion import; revenue attribution and funnel dashboards; link health cron (FR-AFF-4 APIs, 5, 10, 11, 12; FR-ANL-2, 4).
+- Refresh scheduler with fact-sheet diffs, pricing-change handling, dead-product handling (FR-MNT-1, 2, 4; FR-RES-9).
+- Originality check, auto-publish rules, notifications, media library, bulk intake, cost ceilings (FR-CON-7, FR-QA-4, FR-CMS-6 reports, 8, 9, FR-INT-2, 6).
+- Product sourcing cron: new-launch feeds + network directories + commission data → "Suggested products" queue ranked by expected value (FR-INT-7). A lightweight manual version (admin pastes a Product Hunt or network URL) ships in phase 1.
+- Search, deals, helpful votes/error reports, generative image adapter, screenshot annotation (FR-WEB-7, 8, 10; FR-MED-2, 3).
+- Prompt evals on golden set; hill-climb the writing and fact-check prompts.
+- Exit: 100+ published pages, first conversions attributed, refresh running unattended.
+
+### Phase 3 — Mobile and growth (Q1 2027)
+
+- `apps/mobile` (Expo): browse, search, review reader rendering blocks natively, saved items, price-change push alerts, deep/universal links (FR-API-4).
+- Newsletter + digest (FR-WEB-9), Search Console import for decay detection (FR-MNT-3), A/B offers (FR-AFF-13), hands-on browser agent behind per-vendor opt-in (FR-RES-7), second locale.
+
+---
+
+## 10. Risks and mitigations
+
+| Risk                                                      | Impact                   | Mitigation                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Google classifies the site as scaled/low-value AI content | Traffic collapse         | Original evidence, citations, human approval, named editor, cadence cap, refresh cadence, narrow niche start, no fabricated ratings; monitor Search Console from month 1.                                                                                                             |
+| Affiliate approvals slow or denied for a new site         | No commission early      | Vendor-URL/UTM fallback day one; catch-all network; prioritise products with open programs (PartnerStack/Rewardful/Lemon Squeezy style) when choosing the first 50 reviews; the sourcing queue (FR-INT-7) ranks by commission so the new-releases track targets high-paying programs. |
+| Hallucinated pricing/features                             | Trust and legal exposure | Structured extraction with citations, fact-check gate blocks publish, "verified on" dates, report-a-change loop.                                                                                                                                                                      |
+| Scraping blocked / ToS friction                           | Thin research            | Firecrawl with fallbacks, official sources prioritised, robots respected, cache sources.                                                                                                                                                                                              |
+| Cost creep per article                                    | Margin                   | Ledger per step, cost ceilings, Haiku for bulk, caching, Batches for refresh, alerts at 2× target.                                                                                                                                                                                    |
+| Vendor lock-in (Trigger.dev, Firecrawl, model provider)   | Rewrite cost             | Adapters and pure-function steps; keep BullMQ and Playwright as documented exit paths.                                                                                                                                                                                                |
+| Single operator bottleneck in review                      | Throughput               | Section-level regenerate, keyboard-driven queue, auto-publish for low-risk categories after track record.                                                                                                                                                                             |
+| Legal: FTC/trademark/copyright/GDPR                       | Fines, takedowns         | Disclosure enforced in renderer, nominative logo use with notice, short quotes only, cookieless clicks + consent banner, DMCA contact.                                                                                                                                                |
+
+---
+
+## 11. Immediate next steps (what gets built first, in order)
+
+1. Scaffold apps and packages per §2; wire Turborepo tasks and CI (read the installed Turborepo docs first, per `AGENTS.md`).
+2. `packages/db`: schema + migrations for SRS §6; `packages/core` with product/article/affiliate services.
+3. `packages/affiliate`: link builder + resolver with full tests; `/go/[slug]` route in `apps/web` with click queue.
+4. `packages/ai`: LLM wrapper (usage ledger, caching, effort, refusal handling) and Firecrawl adapter.
+5. `packages/pipeline`: `resolve_product`, `crawl_official`, `collect_third_party`, `chunk_embed`, `extract_facts`, `fact_sheet` + Trigger.dev task in `apps/worker`.
+6. `apps/cms`: auth, intake form, job detail with step status and costs, fact-sheet viewer.
+7. `packages/pipeline`: `seo_brief`, `write`, `fact_check`, `style_pass`, `graphics`, `qa_gates`.
+8. `apps/cms`: review queue + block editor; `apps/web`: review page with blocks, structured data, CTAs, ISR; publish flow.
+9. `apps/api`: v1 read endpoints + OpenAPI + client generation.
+10. Run the SRS §8 acceptance checklist on 5 real products; fix; then Phase 2.
+
+Environment variables expected (names only): `DATABASE_URL`, `UPSTASH_REDIS_REST_URL/TOKEN`, `R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET`, `ANTHROPIC_API_KEY`, `FIRECRAWL_API_KEY`, `VOYAGE_API_KEY`, `TRIGGER_SECRET_KEY`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `SENTRY_DSN`, `PLAUSIBLE_DOMAIN`, `REVALIDATE_SECRET`, `INDEXNOW_KEY`; phase 2 adds TTS, image, YouTube and network credentials.
