@@ -1,6 +1,6 @@
 import { runDigestSchedule, sendDigestIssue } from "@repo/core";
 import { getDb } from "@repo/db";
-import { logger, queue, schedules, schemaTask } from "@trigger.dev/sdk";
+import { logger, queue, schemaTask, task } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 /** One digest send at a time; delivery claims make overlaps safe anyway, this just keeps it calm. */
@@ -11,9 +11,9 @@ const newsletterQueue = queue({ name: "newsletter", concurrencyLimit: 1 });
  * locale and sends it (autoSend) or leaves a draft for the CMS. Also sends due scheduled issues and
  * resumes interrupted sends.
  */
-export const newsletterDigest = schedules.task({
+export const newsletterDigest = task({
   id: "newsletter-digest",
-  cron: "5 * * * *",
+  // Started by a dispatcher in cron.ts.
   queue: newsletterQueue,
   maxDuration: 3600,
   run: async () => {

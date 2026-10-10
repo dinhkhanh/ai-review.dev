@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { articlesNeedingVideos, getSetting } from "@repo/core";
 import { getDb } from "@repo/db";
 import { createStepServices, runVideo, VIDEO_STAGES } from "@repo/pipeline";
-import { logger, queue, schedules, schemaTask } from "@trigger.dev/sdk";
+import { logger, queue, schemaTask, task } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 const require = createRequire(import.meta.url);
@@ -47,9 +47,9 @@ export const generateVideo = schemaTask({
 });
 
 /** Hourly: generate videos for newly published articles when enabled in Settings (FR-VID-1). */
-export const videoAutogen = schedules.task({
+export const videoAutogen = task({
   id: "video-autogen",
-  cron: "23 * * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => {
     const db = getDb();
     const [enabled, settings] = await Promise.all([

@@ -7,15 +7,15 @@ import {
   syncNetworkConversions,
 } from "@repo/core";
 import { getDb } from "@repo/db";
-import { logger, schedules, schemaTask } from "@trigger.dev/sdk";
+import { logger, schemaTask, task } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 const DAY = 86_400_000;
 
 /** Daily affiliate link health check (FR-AFF-10): broken links are paused and the admin notified. */
-export const linkHealth = schedules.task({
+export const linkHealth = task({
   id: "link-health",
-  cron: "40 4 * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => {
     const result = await runLinkHealthChecks(getDb());
     logger.info("link health", result);
@@ -31,9 +31,9 @@ export const linkHealthNow = schemaTask({
 });
 
 /** Daily program status reminders for applications that have been pending for two weeks (FR-CMS-8). */
-export const affiliateReminders = schedules.task({
+export const affiliateReminders = task({
   id: "affiliate-reminders",
-  cron: "10 8 * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => remindStaleApplications(getDb()),
 });
 
@@ -52,9 +52,9 @@ async function syncConversions(days: number, networks?: Array<(typeof CONVERSION
 }
 
 /** Daily conversion import from network reporting APIs, last 30 days (FR-AFF-11). */
-export const syncConversionsDaily = schedules.task({
+export const syncConversionsDaily = task({
   id: "sync-conversions",
-  cron: "25 5 * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => syncConversions(30),
 });
 
@@ -69,9 +69,9 @@ export const syncConversionsNow = schemaTask({
 });
 
 /** Daily Plausible page-view import for the last 3 days (FR-ANL-2, FR-MNT-1 top-traffic cadence). */
-export const importPageViews = schedules.task({
+export const importPageViews = task({
   id: "import-page-views",
-  cron: "50 2 * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => {
     const apiKey = process.env.PLAUSIBLE_API_KEY;
     const siteId = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;

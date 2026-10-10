@@ -1,6 +1,6 @@
 import { createTranslationJob, getSetting, pendingAutoTranslations, undispatchedTranslationJobs } from "@repo/core";
 import { eq, getDb, reviewJobs } from "@repo/db";
-import { idempotencyKeys, logger, schedules } from "@trigger.dev/sdk";
+import { idempotencyKeys, logger, task } from "@trigger.dev/sdk";
 import { reviewProduct } from "./review-product";
 
 /** Auto-translations created per run, so enabling a locale back-fills the catalogue gradually. */
@@ -13,9 +13,9 @@ const MAX_NEW_PER_RUN = 5;
  *    scheduled publishing), whose publish hook can only create the job;
  * 2. hands queued translate jobs that have no run yet to `review-product`.
  */
-export const translationDispatch = schedules.task({
+export const translationDispatch = task({
   id: "translation-dispatch",
-  cron: "*/15 * * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => {
     const db = getDb();
     const policy = await getSetting(db, "i18n.policy");

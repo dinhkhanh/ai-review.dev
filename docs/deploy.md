@@ -129,7 +129,10 @@ Every Phase 3 feature stays off or hidden until its keys and settings exist.
      `EXPO_ACCESS_TOKEN` on the worker only if enhanced push security is on.
 3. **Redeploy the worker** (`pnpm --filter worker run deploy`). The image now includes headless
    Chromium. New tasks: `search-console-import`(+`-now`), `newsletter-digest`, `newsletter-send`,
-   `translation-dispatch`, `price-alert-push`, `push-receipts`, `hands-on-trial`.
+   `translation-dispatch`, `price-alert-push`, `push-receipts`, `hands-on-trial`. The plan allows 10
+   cron schedules, so recurring jobs are plain tasks started by three dispatchers in
+   `apps/worker/src/trigger/cron.ts` (`cron-daily` 02:50 UTC, `cron-hourly`, `cron-quarter-hourly`)
+   plus `publish-scheduled`.
 4. **Redeploy web, CMS and API** (push to main). The web app now routes through `proxy.ts`, with
    German under `/de`. The API is version 1.4.0 (`?locale=`, mobile endpoints).
 5. **Before German goes public**, fill in `apps/web/lib/legal.ts`. Until then `/impressum` is

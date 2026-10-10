@@ -1,6 +1,6 @@
 import { checkPushReceipts, sendPendingPriceAlerts } from "@repo/core";
 import { getDb } from "@repo/db";
-import { logger, schedules, schemaTask } from "@trigger.dev/sdk";
+import { logger, schemaTask, task } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 /**
@@ -20,9 +20,9 @@ export const pushReceipts = schemaTask({
 });
 
 /** Price-change pushes to devices following a product (FR-API-4), every 15 minutes. */
-export const priceAlertPush = schedules.task({
+export const priceAlertPush = task({
   id: "price-alert-push",
-  cron: "*/15 * * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => {
     const result = await sendPendingPriceAlerts(getDb());
     if (result.changes) logger.info("price alert pushes", { ...result, tickets: result.tickets.length });

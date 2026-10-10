@@ -1,6 +1,6 @@
 import { publishDueArticles, publishEnvFromProcess, purgeOldClicks } from "@repo/core";
 import { getDb } from "@repo/db";
-import { logger, schedules } from "@trigger.dev/sdk";
+import { logger, schedules, task } from "@trigger.dev/sdk";
 
 /** Publishes articles scheduled in the CMS (FR-QA-2 `scheduled`), every 10 minutes. */
 export const publishScheduled = schedules.task({
@@ -14,9 +14,9 @@ export const publishScheduled = schedules.task({
 });
 
 /** Daily housekeeping: raw click retention (NFR-8). */
-export const dailyMaintenance = schedules.task({
+export const dailyMaintenance = task({
   id: "daily-maintenance",
-  cron: "17 3 * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => {
     const purgedClicks = await purgeOldClicks(getDb());
     logger.info("maintenance", { purgedClicks });

@@ -1,7 +1,7 @@
 import { createSearchConsoleClient } from "@repo/ai";
 import { detectContentDecay, importSearchConsole, notify, SEARCH_CONSOLE_MAX_BACKFILL_DAYS } from "@repo/core";
 import { getDb } from "@repo/db";
-import { logger, schedules, schemaTask } from "@trigger.dev/sdk";
+import { logger, schemaTask, task } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 /** Import, then decay detection; a failed import still re-evaluates decay on the data we have. */
@@ -38,9 +38,9 @@ async function importAndDetect(days?: number) {
  * Daily Search Console import + content-decay detection (FR-MNT-3). Runs before the refresh
  * scheduler (04:40) so refreshes pulled forward by decay are picked up the same morning.
  */
-export const searchConsoleDaily = schedules.task({
+export const searchConsoleDaily = task({
   id: "search-console-import",
-  cron: "55 3 * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => importAndDetect(),
 });
 

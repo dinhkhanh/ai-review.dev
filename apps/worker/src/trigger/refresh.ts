@@ -1,6 +1,6 @@
 import { createReviewJob, deferRefresh, dueRefreshProducts, getSetting, DEFAULT_REFRESH_POLICY } from "@repo/core";
 import { getDb } from "@repo/db";
-import { logger, schedules } from "@trigger.dev/sdk";
+import { logger, task } from "@trigger.dev/sdk";
 import { reviewProduct } from "./review-product";
 
 /**
@@ -8,9 +8,9 @@ import { reviewProduct } from "./review-product";
  * has passed (60 days by default, 14 for top-traffic pages), capped per run. Creating a job pushes
  * the date out a day as a lease; a finished refresh schedules the next one.
  */
-export const refreshScheduler = schedules.task({
+export const refreshScheduler = task({
   id: "refresh-scheduler",
-  cron: "40 4 * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => {
     const db = getDb();
     const policy = (await getSetting(db, "refresh.policy")) ?? DEFAULT_REFRESH_POLICY;

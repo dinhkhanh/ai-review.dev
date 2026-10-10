@@ -1,14 +1,14 @@
 import { backfillSearchText } from "@repo/core";
 import { getDb } from "@repo/db";
-import { logger, schedules, task } from "@trigger.dev/sdk";
+import { logger, task } from "@trigger.dev/sdk";
 
 /**
  * Site search index upkeep (FR-WEB-7). Publishing refreshes `search_text`; this daily pass fills
  * articles published before search existed or edited outside the publish flow.
  */
-export const searchBackfill = schedules.task({
+export const searchBackfill = task({
   id: "search-backfill",
-  cron: "41 3 * * *",
+  // Started by a dispatcher in cron.ts.
   run: async () => {
     const updated = await backfillSearchText(getDb());
     if (updated) logger.info("search text backfilled", { updated });
