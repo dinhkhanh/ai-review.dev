@@ -1,5 +1,25 @@
 {
-  "extends": "@repo/typescript-config/library.json",
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Standalone (no explicit `types`): Vercel's Hono builder compiles with this file and fails with
+  // TS2688 when `types: ["node"]` cannot be resolved in its build location. Without the field,
+  // TypeScript auto-includes the installed @types packages (locally: @types/node).
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["es2023"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
   "include": ["src", "*.ts"],
   "exclude": ["node_modules", "dist"]
 }
