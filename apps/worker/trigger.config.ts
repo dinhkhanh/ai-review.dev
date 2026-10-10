@@ -1,4 +1,4 @@
-import { syncEnvVars } from "@trigger.dev/build/extensions/core";
+import { additionalPackages, syncEnvVars } from "@trigger.dev/build/extensions/core";
 import { defineConfig } from "@trigger.dev/sdk";
 import { readFileSync } from "node:fs";
 
@@ -47,7 +47,12 @@ export default defineConfig({
   build: {
     // Native and file-reading packages stay out of the bundle (installed in the deploy image).
     external: ["sharp", "@resvg/resvg-js", "@fontsource/inter"],
-    extensions: [syncEnvVars(async (ctx) => (["prod", "production"].includes(ctx.environment) ? productionEnv() : []))],
+    extensions: [
+      // @repo/graphics reads the font files via createRequire().resolve, which esbuild can't see,
+      // so the external is never added to the image's package.json unless we install it explicitly.
+      additionalPackages({ packages: ["@fontsource/inter@5.3.0"] }),
+      syncEnvVars(async (ctx) => (["prod", "production"].includes(ctx.environment) ? productionEnv() : [])),
+    ],
   },
   // Research + writing can take a while; video renders (phase 2) longer still.
   maxDuration: 3600,
