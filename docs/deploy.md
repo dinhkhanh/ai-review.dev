@@ -38,6 +38,10 @@ Phase 0 steps (database URLs, Upstash token, migrate/seed, domains) are done. Fo
 1. **Fill the new values in `.env.production.local`** (see `.env.production.example`, section
    "Phase 1"): `ANTHROPIC_API_KEY`, `FIRECRAWL_API_KEY`, `VOYAGE_API_KEY` (optional), the four `R2_*`
    values, `NEXT_PUBLIC_MEDIA_URL` and `NEXT_PUBLIC_SITE_URL`.
+   Check with `node scripts/prod.mjs env:check`: it lists, per destination, what is still missing
+   (names only). Destinations live in `scripts/env-targets.json`: the Vercel projects get only what
+   they use (no R2 credentials, just the public `NEXT_PUBLIC_MEDIA_URL`); the Trigger.dev worker,
+   which uploads media, gets the R2 and AI keys when you deploy it (step 4).
 2. **Push to Vercel and migrate** (adds migrations `0003`/`0004`: media blobs, comments, step logs,
    published versions):
    ```sh
@@ -45,19 +49,23 @@ Phase 0 steps (database URLs, Upstash token, migrate/seed, domains) are done. Fo
    node scripts/prod.mjs db:migrate
    node scripts/prod.mjs db:seed     # adds the new settings keys; keeps existing values
    ```
-3. **Deploy the worker to Trigger.dev** (needs `npx trigger.dev@4.7.3 login` once). The deploy syncs
+3. **Use the Trigger.dev production key on the CMS.** `TRIGGER_SECRET_KEY` in
+   `.env.production.local` must be the **Production** secret key (`tr_prod_…`, Trigger.dev
+   dashboard → API keys → Production), not the dev key (`tr_dev_…`, which only reaches a local
+   `trigger dev` session). Then `node scripts/prod.mjs env:push` and redeploy the CMS.
+4. **Deploy the worker to Trigger.dev** (needs `npx trigger.dev@4.7.3 login` once). The deploy syncs
    the worker variables from `.env.production.local` (see `apps/worker/trigger.config.ts`):
    ```sh
    pnpm --filter worker run deploy
    ```
    Until the worker is deployed, jobs created in the production CMS stay queued (the CMS shows a
    notice). Locally, `pnpm --filter worker runner` processes queued jobs.
-4. **Voyage billing (optional).** Without a payment method Voyage allows 3 requests/minute, so
+5. **Voyage billing (optional).** Without a payment method Voyage allows 3 requests/minute, so
    embeddings fail and retrieval uses Postgres full-text search. Adding a payment method enables
    semantic retrieval; no code change needed.
-5. **Plausible (optional).** Set `NEXT_PUBLIC_PLAUSIBLE_DOMAIN=ai-review.dev` on `ai-review-web`.
-6. **Preview database (optional).** Preview builds still fail without a preview `DATABASE_URL`.
-7. **CI remote cache (optional).** Create a Vercel access token, add it as the `TURBO_TOKEN`
+6. **Plausible (optional).** Set `NEXT_PUBLIC_PLAUSIBLE_DOMAIN=ai-review.dev` on `ai-review-web`.
+7. **Preview database (optional).** Preview builds still fail without a preview `DATABASE_URL`.
+8. **CI remote cache (optional).** Create a Vercel access token, add it as the `TURBO_TOKEN`
    repository secret and set the `TURBO_TEAM` repository variable to `suzu-group`.
 
 ## How the pieces talk

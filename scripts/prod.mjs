@@ -1,5 +1,8 @@
 // Production helpers. Reads .env.production.local; never prints secret values.
+//   node scripts/prod.mjs env:check    show which variables each destination still lacks (no values)
 //   node scripts/prod.mjs env:push     push env vars to the Vercel projects (production target)
+// The Trigger.dev worker gets its variables (incl. R2) on `pnpm --filter worker run deploy`.
+// Destinations are listed in scripts/env-targets.json.
 //   node scripts/prod.mjs db:migrate   apply migrations to the production database
 //   node scripts/prod.mjs db:seed      seed categories/settings and create the first admin
 import { execFileSync } from "node:child_process";
@@ -10,25 +13,12 @@ import { join } from "node:path";
 const TEAM = "suzu-group";
 const FILE = ".env.production.local";
 
-/** Which variables each Vercel project receives. Secrets are stored as "sensitive" (write-only). */
-const PROJECTS = {
-  "ai-review-web": ["DATABASE_URL", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "REVALIDATE_SECRET", "NEXT_PUBLIC_MEDIA_URL"],
-  "ai-review-cms": [
-    "DATABASE_URL",
-    "BETTER_AUTH_SECRET",
-    "REVALIDATE_SECRET",
-    "UPSTASH_REDIS_REST_URL",
-    "UPSTASH_REDIS_REST_TOKEN",
-    "TRIGGER_SECRET_KEY",
-    // Section regeneration and name -> URL lookup run inside the CMS.
-    "ANTHROPIC_API_KEY",
-    "FIRECRAWL_API_KEY",
-    "VOYAGE_API_KEY",
-    "NEXT_PUBLIC_MEDIA_URL",
-  ],
-  "ai-review-api": ["DATABASE_URL", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "NEXT_PUBLIC_MEDIA_URL"],
-};
-const NOT_SECRET = new Set(["UPSTASH_REDIS_REST_URL", "NEXT_PUBLIC_MEDIA_URL"]);
+/** Which variables go where (shared with apps/worker/trigger.config.ts). */
+const TARGETS = JSON.parse(readFileSync(new URL("./env-targets.json", import.meta.url), "utf8"));
+const PROJECTS = TARGETS.vercel;
+/** Non-secret values are stored as "encrypted" (readable in the dashboard); secrets as "sensitive". */
+const NOT_SECRET = new Set(TARGETS.public);
+const OPTIONAL = new Set(TARGETS.optional);
 
 function loadEnv() {
   let text;
@@ -82,6 +72,28 @@ function envPush(env) {
     rmSync(dir, { recursive: true, force: true });
   }
   console.log("\nRedeploy each project (or push to main) for new values to take effect.");
+  console.log("Worker variables (R2, AI keys...) sync to Trigger.dev on `pnpm --filter worker run deploy`.");
+}
+
+/** Lists, per destination, the variables still empty in the file. Never prints values. */
+function envCheck(env) {
+  const destinations = [
+    ...Object.entries(PROJECTS).map(([name, keys]) => [`Vercel ${name}`, keys]),
+    ["Trigger.dev worker (on deploy)", TARGETS.trigger],
+  ];
+  let missingRequired = 0;
+  for (const [name, keys] of destinations) {
+    const missing = keys.filter((k) => !env[k]);
+    const required = missing.filter((k) => !OPTIONAL.has(k));
+    missingRequired += required.length;
+    const note = missing.length ? `missing: ${missing.map((k) => (OPTIONAL.has(k) ? `${k} (optional)` : k)).join(", ")}` : "complete";
+    console.log(`${required.length ? "✗" : "✓"} ${name.padEnd(32)} ${note}`);
+  }
+  if (env.TRIGGER_SECRET_KEY && !env.TRIGGER_SECRET_KEY.startsWith("tr_prod_")) {
+    console.log("✗ TRIGGER_SECRET_KEY is not a production key (expected tr_prod_…)");
+    missingRequired++;
+  }
+  process.exitCode = missingRequired ? 1 : 0;
 }
 
 function run(cmd, args, extraEnv) {
@@ -92,6 +104,8 @@ const env = loadEnv();
 const command = process.argv[2];
 if (command === "env:push") {
   envPush(env);
+} else if (command === "env:check") {
+  envCheck(env);
 } else if (command === "db:migrate") {
   require(env, ["DATABASE_URL_MIGRATIONS"]);
   run("pnpm", ["--filter", "@repo/db", "exec", "tsx", "src/scripts/migrate.ts"], { DATABASE_URL: env.DATABASE_URL_MIGRATIONS });
@@ -109,6 +123,6 @@ if (command === "env:push") {
   run("pnpm", ["--filter", "@repo/auth", "exec", "tsx", "src/scripts/create-admin.ts"], vars);
   console.log(`\nAdmin password is SEED_ADMIN_PASSWORD in ${FILE}. Enrol 2FA on first sign-in.`);
 } else {
-  console.log("Usage: node scripts/prod.mjs <env:push|db:migrate|db:seed>");
+  console.log("Usage: node scripts/prod.mjs <env:check|env:push|db:migrate|db:seed>");
   process.exit(1);
 }

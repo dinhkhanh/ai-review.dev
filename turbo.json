@@ -78,5 +78,10 @@
       "persistent": true
     }
   },
-  "globalPassThroughEnv": ["ENABLE_EXPERIMENTAL_COREPACK"]
+  "globalPassThroughEnv": [
+    "ENABLE_EXPERIMENTAL_COREPACK",
+    "VERCEL_ENV",
+    "VERCEL_GIT_COMMIT_REF",
+    "TRIGGER_PREVIEW_BRANCH"
+  ]
 }

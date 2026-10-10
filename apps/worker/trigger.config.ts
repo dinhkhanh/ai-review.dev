@@ -8,22 +8,18 @@ try {
   // Deployed builds get env from the Trigger.dev dashboard.
 }
 
-/** Variables the deployed worker needs (docs/deploy.md). Secrets are stored as Trigger.dev secrets. */
-const WORKER_ENV = [
-  "DATABASE_URL",
-  "ANTHROPIC_API_KEY",
-  "FIRECRAWL_API_KEY",
-  "VOYAGE_API_KEY",
-  "R2_ACCOUNT_ID",
-  "R2_ACCESS_KEY_ID",
-  "R2_SECRET_ACCESS_KEY",
-  "R2_BUCKET",
-  "NEXT_PUBLIC_MEDIA_URL",
-  "NEXT_PUBLIC_SITE_URL",
-  "REVALIDATE_SECRET",
-  "SENTRY_DSN",
-];
-const PUBLIC_ENV = new Set(["R2_BUCKET", "NEXT_PUBLIC_MEDIA_URL", "NEXT_PUBLIC_SITE_URL"]);
+/** Variables the deployed worker needs; shared with scripts/prod.mjs (scripts/env-targets.json). */
+// Only needed at deploy time on your machine; inside the deployed container the file is absent.
+function loadTargets(): { trigger: string[]; public: string[] } {
+  try {
+    return JSON.parse(readFileSync(new URL("../../scripts/env-targets.json", import.meta.url), "utf8"));
+  } catch {
+    return { trigger: [], public: [] };
+  }
+}
+const TARGETS = loadTargets();
+const WORKER_ENV = TARGETS.trigger;
+const PUBLIC_ENV = new Set(TARGETS.public);
 
 /** Reads .env.production.local (gitignored) when deploying to production; nothing otherwise. */
 function productionEnv(): Array<{ name: string; value: string; isSecret: boolean }> {

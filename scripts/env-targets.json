@@ -1,0 +1,41 @@
+{
+  "$comment": "Which production variables go where. Read by scripts/prod.mjs (Vercel push, env:check) and apps/worker/trigger.config.ts (synced to Trigger.dev on `pnpm --filter worker run deploy`). Values live only in .env.production.local.",
+  "vercel": {
+    "ai-review-web": [
+      "DATABASE_URL",
+      "UPSTASH_REDIS_REST_URL",
+      "UPSTASH_REDIS_REST_TOKEN",
+      "REVALIDATE_SECRET",
+      "NEXT_PUBLIC_MEDIA_URL"
+    ],
+    "ai-review-cms": [
+      "DATABASE_URL",
+      "BETTER_AUTH_SECRET",
+      "REVALIDATE_SECRET",
+      "UPSTASH_REDIS_REST_URL",
+      "UPSTASH_REDIS_REST_TOKEN",
+      "TRIGGER_SECRET_KEY",
+      "ANTHROPIC_API_KEY",
+      "FIRECRAWL_API_KEY",
+      "VOYAGE_API_KEY",
+      "NEXT_PUBLIC_MEDIA_URL"
+    ],
+    "ai-review-api": ["DATABASE_URL", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "NEXT_PUBLIC_MEDIA_URL"]
+  },
+  "trigger": [
+    "DATABASE_URL",
+    "ANTHROPIC_API_KEY",
+    "FIRECRAWL_API_KEY",
+    "VOYAGE_API_KEY",
+    "R2_ACCOUNT_ID",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_BUCKET",
+    "NEXT_PUBLIC_MEDIA_URL",
+    "NEXT_PUBLIC_SITE_URL",
+    "REVALIDATE_SECRET",
+    "SENTRY_DSN"
+  ],
+  "optional": ["VOYAGE_API_KEY", "SENTRY_DSN"],
+  "public": ["UPSTASH_REDIS_REST_URL", "NEXT_PUBLIC_MEDIA_URL", "NEXT_PUBLIC_SITE_URL", "R2_BUCKET"]
+}
