@@ -25,6 +25,7 @@ const NAV = [
   { href: "/media", label: "Media", adminOnly: false },
   { href: "/reports", label: "Visitor reports", adminOnly: false },
   { href: "/notifications", label: "Notifications", adminOnly: false },
+  { href: "/launch", label: "Launch readiness", adminOnly: false },
   { href: "/settings", label: "Settings", adminOnly: false },
   { href: "/vault", label: "Vault", adminOnly: true },
   { href: "/audit", label: "Audit log", adminOnly: true },

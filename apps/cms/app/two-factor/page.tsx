@@ -37,7 +37,7 @@ export default function TwoFactorPage() {
       title="Two-factor authentication"
       subtitle={useBackup ? "Enter one of your backup codes." : "Enter the 6-digit code from your authenticator app."}
     >
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form method="post" onSubmit={onSubmit} className="space-y-4">
         <div>
           <Label htmlFor="code">{useBackup ? "Backup code" : "Authentication code"}</Label>
           <Input

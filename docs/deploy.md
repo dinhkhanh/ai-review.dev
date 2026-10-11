@@ -159,6 +159,61 @@ Every Phase 3 feature stays off or hidden until its keys and settings exist.
    - Replace the template icon and splash images. Locally:
      `EXPO_PUBLIC_API_URL=http://<LAN IP>:3002 pnpm --filter mobile dev`.
 
+## Phase 4 rollout (owner)
+
+Phase 4 has no migration and no new settings keys. Its pieces switch on as their secrets appear.
+
+1. **Sentry** (org `suzu-group`; projects already exist, see Inventory):
+   - Web, CMS and API already have their own `SENTRY_DSN` (+ `NEXT_PUBLIC_SENTRY_DSN` on web/CMS)
+     on the Vercel projects. `env:push` deliberately does not touch these.
+   - In `.env.production.local`, `SENTRY_DSN` is the `ai-review-worker` DSN (synced to Trigger.dev on
+     worker deploy). Optional: `SENTRY_TRACES_SAMPLE_RATE` (default 0 = errors only), and
+     `SENTRY_AUTH_TOKEN` (+ `SENTRY_ORG`, default `suzu-group`) for source maps. The web and CMS
+     builds upload to `ai-review-web` / `ai-review-cms` unless `SENTRY_PROJECT` is set on the
+     Vercel project.
+   - In each Sentry project, turn on "Prevent storing of IP addresses" and keep the default data
+     scrubbing. The SDKs already strip PII (`packages/observability`).
+   - Mobile: create a React Native project and set `EXPO_PUBLIC_SENTRY_DSN` (+ `SENTRY_AUTH_TOKEN`,
+     `SENTRY_ORG`, `SENTRY_PROJECT` for source maps) in EAS env.
+   - Sentry is now listed as a processor in the privacy policy (EN/DE). Include it in the lawyer's
+     review.
+   - Then `env:check`, `env:push`, redeploy the worker (`pnpm --filter worker run deploy`) and push to
+     main (web, CMS, API).
+2. **Security headers** ship with that deploy: CSP on web and CMS (no nonces, so ISR is unaffected),
+   `X-Frame-Options: DENY`, CMS `noindex` + `no-store`, Hono secure headers on the API. After the
+   deploy, open a review page, `/de`, `/report` (Turnstile) and the CMS newsletter preview. Check the
+   browser console for CSP violations.
+3. **Launch check and monitor** (`.github/workflows/monitor.yml`): runs by itself every 15 minutes
+   (quick) and daily at 06:17 UTC (full), and opens one GitHub issue labelled `launch-check` on
+   failure, closing it on recovery. Optional: repo variables `LAUNCH_CHECK_SITE_URL`/`_API_URL`/
+   `_CMS_URL` (defaults are the production domains) and secrets `TELEGRAM_BOT_TOKEN`/
+   `TELEGRAM_CHAT_ID`. After step 2, run it once from Actions with mode `full` and expect 0
+   failures. Locally: `pnpm launch-check --site https://ai-review.dev --api https://api.ai-review.dev
+--cms https://admin.ai-review.dev --mode full`. The monitor's go-link hits are logged as bot
+   clicks (~96 rows/day), so they are excluded from reports. Scheduled workflows are disabled by
+   GitHub after 60 days without commits on a public repo; re-enable them if that happens.
+4. **Backups** (`.github/workflows/backup.yml`):
+   - Create a private R2 bucket `ai-review-backups` and an R2 API token with Object Read & Write
+     limited to it.
+   - `age-keygen -o backup.key`: keep the private key offline (password manager). The public key
+     (`age1…`) goes into variable `BACKUP_AGE_RECIPIENT`.
+   - Secrets: `BACKUP_DATABASE_URL` (Supabase **session** pooler, port 5432, or the direct
+     connection; the workflow refuses 6543), `R2_ACCOUNT_ID`, `R2_BACKUP_ACCESS_KEY_ID`,
+     `R2_BACKUP_SECRET_ACCESS_KEY`, `BACKUP_AGE_IDENTITY` (private key, used only by the restore
+     drill).
+   - Variables: `R2_BACKUP_BUCKET`, `BACKUP_AGE_RECIPIENT`. Optional: `BACKUP_RETENTION_DAYS` (35),
+     `BACKUP_PG_MAJOR` (17).
+   - Run Actions → Database backup manually with `job=backup`, then with `job=restore-drill`. After
+     that it runs nightly at 03:30 UTC, with a monthly restore drill.
+5. **E2E in CI** runs on every push and PR (`e2e` job in `ci.yml`) against a seeded local database.
+   It needs no secrets.
+6. **Launch exit criterion:** run five real products through the full pipeline in production, then
+   open CMS `/launch` and clear every fail. Every CMS account needs 2FA. `/launch` checks only the
+   CMS's own environment, so also run `node scripts/prod.mjs env:check`. Keep the scheduled launch
+   check green for 7 days. Then revisit D-3 (human review) in the SRS.
+7. Procedures for incidents, rollback, kill switches, key rotation and restore are in
+   [`docs/runbook.md`](runbook.md).
+
 ## How the pieces talk
 
 - CMS "New review" creates a `review_jobs` row and triggers the `review-product` task with the job

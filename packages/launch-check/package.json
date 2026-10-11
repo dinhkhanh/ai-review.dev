@@ -1,0 +1,26 @@
+{
+  "name": "@repo/launch-check",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "launch-check": "./src/cli.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "node src/cli.ts"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "26.6.4",
+    "eslint": "10.9.1",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

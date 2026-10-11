@@ -1,0 +1,9 @@
+{
+  "extends": "@repo/typescript-config/library.json",
+  "compilerOptions": {
+    // Specs pass callbacks to page.evaluate(), which run in the browser.
+    "lib": ["es2023", "dom", "dom.iterable"]
+  },
+  "include": ["src", "tests", "*.ts"],
+  "exclude": ["node_modules", "playwright-report", "test-results", "lighthouse-report"]
+}

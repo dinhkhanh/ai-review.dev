@@ -1,0 +1,190 @@
+name: Database backup
+
+# Nightly encrypted pg_dump of production to R2 (plan Phase 4 "Operations"), plus a monthly
+# restore drill into a throwaway Postgres. Restore procedure: docs/runbook.md.
+#
+# Secrets: BACKUP_DATABASE_URL, R2_ACCOUNT_ID, R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY,
+#          BACKUP_AGE_IDENTITY (restore drill only: the age private key).
+# Variables: R2_BACKUP_BUCKET, BACKUP_AGE_RECIPIENT (age public key), optional BACKUP_RETENTION_DAYS
+#          (default 35) and BACKUP_PG_MAJOR (default 17, must be >= the server's major version).
+#
+# BACKUP_DATABASE_URL must be the Supabase *session* pooler (port 5432) or the direct connection.
+# The transaction pooler (6543) breaks pg_dump: it relies on session state and one snapshot.
+
+on:
+  schedule:
+    - cron: "30 3 * * *" # nightly backup
+    - cron: "0 5 1 * *" # monthly restore drill
+  workflow_dispatch:
+    inputs:
+      job:
+        description: What to run
+        type: choice
+        options: [backup, restore-drill]
+        default: backup
+      key:
+        description: Object key to restore (restore drill; default = newest)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_REGION: auto
+  # R2 rejects the CRC checksums newer AWS CLI versions send by default.
+  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+  R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+  BUCKET: ${{ vars.R2_BACKUP_BUCKET }}
+  PG_MAJOR: ${{ vars.BACKUP_PG_MAJOR || '17' }}
+
+jobs:
+  backup:
+    if: (github.event_name == 'schedule' && github.event.schedule == '30 3 * * *') || (github.event_name == 'workflow_dispatch' && inputs.job == 'backup')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      RETENTION_DAYS: ${{ vars.BACKUP_RETENTION_DAYS || '35' }}
+    steps:
+      - name: Check configuration
+        run: |
+          set -euo pipefail
+          for v in BACKUP_DATABASE_URL AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY BUCKET AGE_RECIPIENT; do
+            [ -n "${!v}" ] || { echo "::error::$v is not configured"; exit 1; }
+          done
+          port=$(python3 -c 'import os, urllib.parse; print(urllib.parse.urlsplit(os.environ["BACKUP_DATABASE_URL"]).port or 5432)')
+          if [ "$port" = "6543" ]; then
+            echo "::error::BACKUP_DATABASE_URL uses the transaction pooler (6543). Use the session pooler (5432) or the direct connection."
+            exit 1
+          fi
+
+      - name: Install pg_dump ${{ env.PG_MAJOR }} and age
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "postgresql-client-${PG_MAJOR}" age
+          echo "/usr/lib/postgresql/${PG_MAJOR}/bin" >> "$GITHUB_PATH"
+
+      - name: Dump, encrypt and upload
+        run: |
+          set -euo pipefail
+          server=$(psql "$BACKUP_DATABASE_URL" -Atc "show server_version_num")
+          if [ $((server / 10000)) -gt "$PG_MAJOR" ]; then
+            echo "::error::Server is Postgres $((server / 10000)); set BACKUP_PG_MAJOR to at least that."
+            exit 1
+          fi
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          key="db/$(date -u +%Y/%m/%d)/aireview-${stamp}.dump.age"
+          # App data only: the public schema plus drizzle's migration history. Supabase-managed
+          # schemas (auth, storage, extensions...) are recreated by the platform.
+          pg_dump "$BACKUP_DATABASE_URL" --format=custom --compress=6 --no-owner --no-privileges \
+            --schema=public --schema=drizzle --file=backup.dump
+          pg_restore --list backup.dump > /dev/null
+          tables=$(pg_restore --list backup.dump | grep -c ' TABLE DATA ' || true)
+          age --encrypt --recipient "$AGE_RECIPIENT" --output backup.dump.age backup.dump
+          rm backup.dump
+          aws s3 cp backup.dump.age "s3://${BUCKET}/${key}" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          echo "Uploaded ${key} ($(du -h backup.dump.age | cut -f1), ${tables} tables)" >> "$GITHUB_STEP_SUMMARY"
+
+      # Retention in the workflow (not an R2 lifecycle rule) so it is visible and versioned here.
+      # It never deletes the 7 newest backups, whatever their age.
+      - name: Prune old backups
+        run: |
+          set -euo pipefail
+          cutoff=$(date -u -d "-${RETENTION_DAYS} days" +%Y-%m-%dT%H:%M:%S)
+          aws s3api list-objects-v2 --bucket "$BUCKET" --prefix db/ --endpoint-url "$R2_ENDPOINT" \
+            --query 'Contents[].[LastModified,Key]' --output text > objects.txt || true
+          sort -r objects.txt | tail -n +8 | while read -r modified key; do
+            [ -n "$key" ] && [ "$key" != "None" ] || continue
+            if [[ "${modified:0:19}" < "$cutoff" ]]; then
+              aws s3 rm "s3://${BUCKET}/${key}" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+              echo "Pruned ${key}" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+  restore-drill:
+    if: (github.event_name == 'schedule' && github.event.schedule == '0 5 1 * *') || (github.event_name == 'workflow_dispatch' && inputs.job == 'restore-drill')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        # pgvector image: the dump's vector columns need the extension.
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: drill
+          POSTGRES_PASSWORD: drill
+          POSTGRES_DB: drill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U drill -d drill"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+      KEY: ${{ inputs.key }}
+      DRILL_URL: postgres://drill:drill@localhost:5432/drill
+    steps:
+      - name: Install pg_restore ${{ env.PG_MAJOR }} and age
+        run: |
+          set -euo pipefail
+          [ -n "$AGE_IDENTITY" ] || { echo "::error::BACKUP_AGE_IDENTITY is not configured"; exit 1; }
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "postgresql-client-${PG_MAJOR}" age
+          echo "/usr/lib/postgresql/${PG_MAJOR}/bin" >> "$GITHUB_PATH"
+
+      - name: Download and decrypt
+        run: |
+          set -euo pipefail
+          if [ -z "$KEY" ]; then
+            KEY=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix db/ --endpoint-url "$R2_ENDPOINT" \
+              --query 'sort_by(Contents, &LastModified)[-1].Key' --output text)
+          fi
+          [ -n "$KEY" ] && [ "$KEY" != "None" ] || { echo "::error::No backups found under db/"; exit 1; }
+          echo "Restoring ${KEY}" >> "$GITHUB_STEP_SUMMARY"
+          aws s3 cp "s3://${BUCKET}/${KEY}" backup.dump.age --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          (umask 077 && printf '%s\n' "$AGE_IDENTITY" > identity.txt)
+          age --decrypt --identity identity.txt --output backup.dump backup.dump.age
+          rm identity.txt backup.dump.age
+
+      - name: Restore into a throwaway database
+        run: |
+          set -euo pipefail
+          # Supabase keeps extensions in the `extensions` schema; recreate that layout first.
+          psql "$DRILL_URL" -v ON_ERROR_STOP=1 -qc "create schema extensions;
+            create extension vector schema extensions; create extension pg_trgm schema extensions;
+            create extension citext schema extensions;"
+          # The dump creates schema public, which already exists in any database: skip it.
+          pg_restore --list backup.dump | grep -v -E ' SCHEMA - public | COMMENT - SCHEMA public ' > restore.list
+          pg_restore --dbname "$DRILL_URL" --no-owner --no-privileges --exit-on-error --use-list restore.list backup.dump
+
+      - name: Sanity counts
+        run: |
+          set -euo pipefail
+          psql "$DRILL_URL" -v ON_ERROR_STOP=1 -At -F ' ' -c "
+            select 'tables', count(*) from pg_tables where schemaname = 'public'
+            union all select 'migrations', count(*) from drizzle.__drizzle_migrations
+            union all select 'products', count(*) from products
+            union all select 'articles', count(*) from articles
+            union all select 'published', count(*) from articles where status = 'published'
+            union all select 'clicks', count(*) from clicks" | tee counts.txt
+          { echo '```'; cat counts.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          awk '$1 == "tables" && $2 < 40 { bad = 1 } $1 == "products" && $2 < 1 { bad = 1 } END { exit bad }' counts.txt \
+            || { echo "::error::Restored database looks incomplete"; exit 1; }

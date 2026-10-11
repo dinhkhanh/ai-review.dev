@@ -47,7 +47,7 @@ export function SetupTwoFactor() {
 
   if (stage.step === "password") {
     return (
-      <form onSubmit={onPassword} className="space-y-4">
+      <form method="post" onSubmit={onPassword} className="space-y-4">
         <div>
           <Label htmlFor="password">Confirm your password</Label>
           <Input id="password" name="password" type="password" autoComplete="current-password" required />
@@ -84,7 +84,7 @@ export function SetupTwoFactor() {
           ))}
         </ul>
       </div>
-      <form onSubmit={onVerify} className="space-y-4">
+      <form method="post" onSubmit={onVerify} className="space-y-4">
         <div>
           <Label htmlFor="code">Authentication code</Label>
           <Input

@@ -48,4 +48,20 @@ describe("api v1", () => {
     const bad = await app.request("/v1/categories", { headers: { Origin: "https://evil.example" } });
     expect(bad.headers.get("access-control-allow-origin")).toBeNull();
   });
+
+  it("sends security headers, with a locked-down CSP on JSON and a Scalar-compatible one on /docs", async () => {
+    const json = await app.request("/v1/health");
+    expect(json.headers.get("content-security-policy")).toBe(
+      "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+    );
+    expect(json.headers.get("x-frame-options")).toBe("DENY");
+    expect(json.headers.get("strict-transport-security")).toContain("max-age=63072000");
+    expect(json.headers.get("x-content-type-options")).toBe("nosniff");
+    const docs = await app.request("/docs");
+    expect(docs.status).toBe(200);
+    expect(docs.headers.get("content-security-policy")).toContain(
+      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    );
+    expect((await app.request("/v1/nope")).headers.get("content-security-policy")).toContain("default-src 'none'");
+  });
 });

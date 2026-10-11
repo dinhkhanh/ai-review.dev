@@ -24,7 +24,6 @@ export async function generateMetadata(): Promise<Metadata> {
     description: t.site.description,
     openGraph: { siteName: SITE.name, type: "website", locale: t.intl.replace("-", "_") },
     twitter: { card: "summary_large_image" },
-    robots: { index: true, follow: true },
     alternates: { types: { "application/rss+xml": `${SITE.url}${feedPath(locale)}` } },
   };
 }

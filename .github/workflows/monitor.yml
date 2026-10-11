@@ -1,0 +1,107 @@
+name: Launch check
+
+# Synthetic monitoring of production (plan Phase 4). Read-only GETs with a bot/monitor User-Agent,
+# so go-link clicks are flagged as bots. Quick every 15 minutes, full daily, manual on demand.
+# Failures open or update one issue labelled `launch-check`; a passing run closes it.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # quick
+    - cron: "17 6 * * *" # full
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Check depth
+        type: choice
+        options: [full, quick]
+        default: full
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: launch-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Launch check (${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '17 6 * * *' && 'full' || 'quick') }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '17 6 * * *' && 'full' || 'quick') }}
+      SITE_URL: ${{ vars.LAUNCH_CHECK_SITE_URL || 'https://ai-review.dev' }}
+      API_URL: ${{ vars.LAUNCH_CHECK_API_URL || 'https://api.ai-review.dev' }}
+      CMS_URL: ${{ vars.LAUNCH_CHECK_CMS_URL || 'https://admin.ai-review.dev' }}
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: packages/launch-check
+
+      # The CLI has no dependencies and runs under Node's type stripping: no install step.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Run launch check
+        id: check
+        continue-on-error: true
+        run: >-
+          node packages/launch-check/src/cli.ts
+          --site "$SITE_URL" --api "$API_URL" --cms "$CMS_URL"
+          --mode "$MODE" --json result.json --markdown result.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: launch-check-${{ env.MODE }}-${{ github.run_id }}
+          path: result.*
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Open or update the alert issue
+        if: steps.check.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          [ -s result.md ] || echo "The launch check crashed before reporting. See the run log." > result.md
+          failing=$( (jq -r '[.results[] | select(.status == "fail") | .id] | unique | join(",")' result.json 2>/dev/null) || echo "crash")
+          { cat result.md; echo; echo "Run: $run_url"; echo; echo "<!-- failing: $failing -->"; } > body.md
+
+          gh label create launch-check --color B60205 --description "Synthetic launch check failing" 2>/dev/null || true
+          issue=$(gh issue list --label launch-check --state open --json number --jq '.[0].number // empty')
+          notify=""
+          if [ -z "$issue" ]; then
+            gh issue create --title "Launch check failing on production" --label launch-check --body-file body.md
+            notify="Launch check FAILING ($MODE): $failing"
+          else
+            previous=$(gh issue view "$issue" --json body --jq '.body' | sed -n 's/.*<!-- failing: \(.*\) -->.*/\1/p')
+            gh issue edit "$issue" --body-file body.md
+            # Comment (and notify) only when the set of failing checks changes, not every 15 minutes.
+            if [ "$previous" != "$failing" ]; then
+              gh issue comment "$issue" --body "Failing checks changed: \`${failing:-none}\` (was \`${previous:-none}\`). $run_url"
+              notify="Launch check changed ($MODE): $failing"
+            fi
+          fi
+          echo "NOTIFY=$notify" >> "$GITHUB_ENV"
+
+      - name: Close the alert issue after a passing run
+        if: steps.check.outcome == 'success'
+        run: |
+          set -euo pipefail
+          issue=$(gh issue list --label launch-check --state open --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue close "$issue" --comment "Launch check ($MODE) passes again: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "NOTIFY=Launch check recovered ($MODE)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Telegram
+        if: always() && env.NOTIFY != '' && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+        run: |
+          curl -fsS -m 15 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${NOTIFY} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" > /dev/null

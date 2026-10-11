@@ -4,7 +4,17 @@
   "tasks": {
     "bundle-check": {
       "cache": false,
-      "env": ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_SITE_URL", "IOS_BUNDLE_ID", "ANDROID_PACKAGE", "EAS_PROJECT_ID"]
+      "env": [
+        "EXPO_PUBLIC_API_URL",
+        "EXPO_PUBLIC_SITE_URL",
+        "IOS_BUNDLE_ID",
+        "ANDROID_PACKAGE",
+        "EAS_PROJECT_ID",
+        "EXPO_PUBLIC_SENTRY_DSN",
+        "EXPO_PUBLIC_SENTRY_ENVIRONMENT",
+        "SENTRY_ORG",
+        "SENTRY_PROJECT"
+      ]
     }
   }
 }

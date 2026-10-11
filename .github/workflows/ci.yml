@@ -67,3 +67,104 @@ jobs:
 
       - run: pnpm format:check
       - run: pnpm turbo run lint check-types test build
+
+  e2e:
+    name: Browser e2e, accessibility, Lighthouse
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: aireview
+          POSTGRES_PASSWORD: aireview
+          POSTGRES_DB: aireview
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aireview -d aireview"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    env:
+      # Builds, seed and servers all use the dedicated e2e database (the seed refuses any other).
+      DATABASE_URL: postgres://aireview:aireview@localhost:5432/aireview_e2e
+      BETTER_AUTH_SECRET: ci-only-not-a-real-secret-0123456789abcdef
+      BETTER_AUTH_URL: http://localhost:3001
+      # Shared by the CMS (publish → revalidate) and the web app (/api/revalidate).
+      REVALIDATE_SECRET: ci-only-revalidate-secret
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_CMS_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3002
+      E2E_REUSE_SERVERS: "1"
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prepare database
+        env:
+          PGPASSWORD: aireview
+        run: psql -h localhost -U aireview -d aireview -c "create database aireview_e2e"
+
+      # The web home page is prerendered at build time and reads categories.
+      - run: pnpm db:migrate
+      - run: pnpm --filter e2e seed
+
+      - run: pnpm turbo run build --filter=web --filter=cms --filter=api
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - run: pnpm --filter e2e exec playwright install --with-deps chromium
+
+      - name: Start web, CMS and API
+        run: |
+          mkdir -p apps/e2e/test-results
+          PORT=3000 nohup pnpm --filter web start > apps/e2e/test-results/web.log 2>&1 &
+          PORT=3001 nohup pnpm --filter cms start > apps/e2e/test-results/cms.log 2>&1 &
+          PORT=3002 nohup pnpm --filter api start > apps/e2e/test-results/api.log 2>&1 &
+          for url in http://localhost:3000/api/health http://localhost:3001/login http://localhost:3002/v1/health; do
+            for i in $(seq 1 60); do curl -fsS -o /dev/null "$url" && break; sleep 1; done
+            curl -fsS -o /dev/null "$url"
+          done
+
+      # Re-seeds in its global setup, then runs public, a11y, API and CMS publish specs.
+      - run: pnpm e2e
+
+      # Shared runners are noisy: performance is held to 80 here (90 locally, SRS §8 #4) and the best
+      # of two runs counts. Accessibility, SEO and best-practices budgets are unchanged.
+      - name: Lighthouse budgets
+        env:
+          LH_MIN_PERF: "80"
+          LH_RUNS: "2"
+        run: pnpm --filter e2e lighthouse
+
+      - name: Launch check (local stack)
+        run: node packages/launch-check/src/cli.ts --site http://localhost:3000 --api http://localhost:3002 --cms http://localhost:3001 --local
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-reports
+          path: |
+            apps/e2e/playwright-report/
+            apps/e2e/test-results/
+            apps/e2e/lighthouse-report/
+          retention-days: 14

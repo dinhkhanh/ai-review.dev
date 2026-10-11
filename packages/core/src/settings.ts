@@ -128,11 +128,13 @@ export async function setSetting<K extends SettingKey>(
   userId?: string,
 ): Promise<void> {
   const parsed = settingSchemas[key].parse(value);
+  // A top-level null (e.g. "no default ceiling") must be stored as JSON null; drizzle would send SQL NULL.
+  const stored = parsed === null ? sql`'null'::jsonb` : parsed;
   await db
     .insert(settings)
-    .values({ key, value: parsed, updatedByUserId: userId ?? null })
+    .values({ key, value: stored, updatedByUserId: userId ?? null })
     .onConflictDoUpdate({
       target: settings.key,
-      set: { value: parsed, updatedByUserId: userId ?? null, updatedAt: sql`now()` },
+      set: { value: stored, updatedByUserId: userId ?? null, updatedAt: sql`now()` },
     });
 }

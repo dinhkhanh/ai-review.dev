@@ -1,6 +1,9 @@
 import { serve } from "@hono/node-server";
 import { getDb } from "@repo/db";
 import { createApp } from "./create-app";
+import { initSentry } from "./sentry";
+
+initSentry();
 
 const port = Number(process.env.PORT ?? 3002);
 const app = createApp({ db: getDb });

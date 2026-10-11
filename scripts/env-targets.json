@@ -15,7 +15,10 @@
       "APPLE_TEAM_ID",
       "IOS_BUNDLE_ID",
       "ANDROID_PACKAGE",
-      "ANDROID_CERT_SHA256"
+      "ANDROID_CERT_SHA256",
+      "SENTRY_TRACES_SAMPLE_RATE",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_ORG"
     ],
     "ai-review-cms": [
       "DATABASE_URL",
@@ -43,7 +46,10 @@
       "GSC_CLIENT_EMAIL",
       "GSC_PRIVATE_KEY",
       "GSC_SITE_URL",
-      "NEXT_PUBLIC_SITE_URL"
+      "NEXT_PUBLIC_SITE_URL",
+      "SENTRY_TRACES_SAMPLE_RATE",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_ORG"
     ],
     "ai-review-api": [
       "DATABASE_URL",
@@ -134,7 +140,10 @@
     "APPLE_TEAM_ID",
     "IOS_BUNDLE_ID",
     "ANDROID_PACKAGE",
-    "ANDROID_CERT_SHA256"
+    "ANDROID_CERT_SHA256",
+    "SENTRY_TRACES_SAMPLE_RATE",
+    "SENTRY_AUTH_TOKEN",
+    "SENTRY_ORG"
   ],
   "public": [
     "UPSTASH_REDIS_REST_URL",
@@ -153,6 +162,8 @@
     "APPLE_TEAM_ID",
     "IOS_BUNDLE_ID",
     "ANDROID_PACKAGE",
-    "ANDROID_CERT_SHA256"
+    "ANDROID_CERT_SHA256",
+    "SENTRY_TRACES_SAMPLE_RATE",
+    "SENTRY_ORG"
   ]
 }

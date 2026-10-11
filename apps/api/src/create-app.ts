@@ -14,6 +14,22 @@ import { productsRoutes } from "./routes/products";
 import { reviewsRoutes } from "./routes/reviews";
 import { searchRoutes } from "./routes/search";
 import { visitorRoutes } from "./routes/visitor";
+import { reportError } from "./sentry";
+
+const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+const DOCS_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.scalar.com",
+  "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.scalar.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self'",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
 
 export type AppEnv = { Variables: { db: Database } };
 
@@ -36,7 +52,18 @@ export function createApp(options: CreateAppOptions) {
     },
   });
 
-  app.use("*", secureHeaders());
+  app.use(
+    "*",
+    secureHeaders({
+      strictTransportSecurity: "max-age=63072000; includeSubDomains; preload",
+      xFrameOptions: "DENY",
+    }),
+  );
+  // JSON needs no CSP beyond "nothing"; the docs page loads the Scalar UI from jsDelivr.
+  app.use("*", async (c, next) => {
+    await next();
+    c.header("Content-Security-Policy", c.req.path === "/docs" ? DOCS_CSP : API_CSP);
+  });
   app.use(
     "/v1/*",
     cors({
@@ -77,13 +104,14 @@ export function createApp(options: CreateAppOptions) {
   app.get("/", (c) => c.redirect("/docs"));
 
   app.notFound((c) => c.json({ error: { code: "not_found", message: "Route not found" } }, 404));
-  app.onError((err, c) => {
+  app.onError(async (err, c) => {
     if (err instanceof DomainError) {
       const status =
         err.code === "not_found" ? 404 : err.code === "conflict" ? 409 : err.code === "forbidden" ? 403 : 400;
       return c.json({ error: { code: err.code, message: err.message } }, status);
     }
     console.error(err);
+    await reportError(err, { method: c.req.method, path: c.req.routePath || c.req.path });
     return c.json({ error: { code: "internal", message: "Internal server error" } }, 500);
   });
 

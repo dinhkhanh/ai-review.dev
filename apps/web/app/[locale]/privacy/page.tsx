@@ -69,6 +69,15 @@ export default async function PrivacyPage() {
           technische Merkmale Ihres Browsers an Cloudflare übermittelt, um automatisierte Anfragen zu erkennen.
           Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
         </p>
+        <h2>Fehlerüberwachung</h2>
+        <p>
+          Damit wir Fehler schnell beheben können, melden die Website und unsere Server technische Fehlerberichte an
+          Sentry (Functional Software, Inc.), einen Auftragsverarbeiter. Ein Bericht enthält die Fehlermeldung, die
+          aufgerufene Adresse sowie Browser- und Betriebssystemversion. IP-Adressen, Cookies, E-Mail-Adressen und
+          Formularinhalte entfernen wir vor dem Versand; es werden keine Cookies gesetzt und keine Sitzungen
+          aufgezeichnet. Berichte werden spätestens nach 90 Tagen gelöscht. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
+          DSGVO (berechtigtes Interesse an einem fehlerfreien Angebot).
+        </p>
         <h2>Ihre Rechte</h2>
         <p>
           Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit
@@ -99,6 +108,13 @@ export default async function PrivacyPage() {
       <p>
         If you report a change or contact us, we keep your message and, if you give it, your email address, only to
         follow up. Ask us at any time to delete it.
+      </p>
+      <h2>Error monitoring</h2>
+      <p>
+        So we can fix bugs quickly, the site and our servers send technical error reports to Sentry (Functional
+        Software, Inc.), which processes them on our behalf. A report contains the error message, the page address and
+        your browser and operating system version. We remove IP addresses, cookies, email addresses and form contents
+        before sending; no cookies are set and no sessions are recorded. Reports are deleted after 90 days at most.
       </p>
       <h2>Your rights</h2>
       <p>

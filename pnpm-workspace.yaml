@@ -3,5 +3,7 @@ packages:
   - "packages/*"
 allowBuilds:
   # Trigger.dev CLI's remote-build helper; not needed for local dev or `trigger deploy` with local builds.
-  '@depot/cli': false
+  "@depot/cli": false
   esbuild: true
+  # Downloads the sentry-cli binary used to upload source maps at build time.
+  "@sentry/cli": true

@@ -35,7 +35,7 @@ export const en = {
   footer: {
     affiliateNote:
       "Some links on this site are affiliate links. If you buy through them we may earn a commission, at no extra cost to you. It never changes our verdicts.",
-    learnMore: "Learn more",
+    learnMore: "Read our affiliate disclosure",
     rss: "RSS",
     copyright: (year: number, name: string) => `© ${year} ${name}`,
   },
@@ -151,7 +151,7 @@ export const en = {
     intro:
       "Promo codes, trials and guarantees for products we have reviewed. We check them when we refresh each review.",
     affiliate: "Deal links are affiliate links: we may earn a commission at no extra cost to you.",
-    learnMore: "Learn more",
+    learnMore: "Read our affiliate disclosure",
     empty: "No active deals right now. Check back soon.",
     other: "Other",
     getDeal: "Get the deal",

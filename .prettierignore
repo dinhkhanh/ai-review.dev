@@ -7,3 +7,6 @@ pnpm-lock.yaml
 .agents/
 .claude/
 AGENTS.md
+apps/e2e/playwright-report/
+apps/e2e/test-results/
+apps/e2e/lighthouse-report/

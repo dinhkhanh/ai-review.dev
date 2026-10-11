@@ -37,7 +37,7 @@ export default function LoginPage() {
 
   return (
     <AuthCard title="Sign in" subtitle="Admin and editor access only.">
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form method="post" onSubmit={onSubmit} className="space-y-4">
         <div>
           <Label htmlFor="email">Email</Label>
           <Input id="email" name="email" type="email" autoComplete="username" required />

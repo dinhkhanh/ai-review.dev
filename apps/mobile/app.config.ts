@@ -58,6 +58,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-localization",
     ["expo-notifications", { color: "#208AEF" }],
     ["expo-splash-screen", { backgroundColor: "#208AEF", image: "./assets/images/splash-icon.png", imageWidth: 76 }],
+    // Crash reporting; EAS builds upload source maps when SENTRY_AUTH_TOKEN is set (docs/deploy.md).
+    ["@sentry/react-native/expo", { organization: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT }],
   ],
   experiments: { typedRoutes: true },
   extra: {

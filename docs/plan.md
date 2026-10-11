@@ -415,6 +415,77 @@ Deviations and decisions:
   the tool-use API, so cost tracking and refusal handling stay in one place.
 - Network "new programs" directories are still not crawled (unchanged from Phase 2).
 
+### Phase 4 — Launch readiness (2026-10)
+
+Phases 0–3 cover every SRS requirement. Phase 4 adds no product features. It proves the system
+works on the live stack and keeps it observable once traffic arrives.
+
+- **Error monitoring:** Sentry in web, CMS, API, worker and mobile. It is inert without a DSN, and
+  PII is scrubbed before events leave (no IPs, cookies, auth headers, emails, vault or device
+  secrets). Source maps upload only when `SENTRY_AUTH_TOKEN` is set. Failed Trigger.dev runs report
+  with task id and job id.
+- **Security headers:** a CSP on the public site that keeps static/ISR rendering (no nonces). The
+  CMS and API get frame-ancestors `none`, `noindex` and `no-store` on authenticated responses.
+- **Browser e2e (`apps/e2e`):** Playwright against production builds seeded with a deterministic
+  fixture catalogue. Public flows: review page, go-link, search, vote, report, newsletter, consent,
+  `/de`. CMS flows: login with 2FA, then approve → live. axe WCAG 2.1 AA scans (FR-WEB-12) and
+  Lighthouse mobile budgets on the review page (FR-WEB-3, SRS §8 #4). Runs as a CI job.
+- **Launch check (`packages/launch-check`):** dependency-free synthetic checks against any
+  deployment. Covers health, robots/sitemaps/RSS/IndexNow, per-review SEO and structured data,
+  disclosure-before-CTA, `rel=sponsored`, the go-link redirect contract, hreflang reciprocity,
+  security headers, OpenAPI, and search p95 (FR-WEB-7). It runs in CI against the local build and
+  on a schedule against production (GitHub Actions), opening an issue on failure.
+- **Acceptance evaluator:** SRS §8 criteria 1, 5 and 6 computed from a job's stored data (sources,
+  citations, media, scorecard, ledger, duplicates). Criteria 2–4 are live checks from the launch
+  check. CMS `/launch` shows per-job results and a rollout checklist (env, settings, 2FA, legal
+  pages).
+- **Operations:** nightly encrypted `pg_dump` of production to R2 with retention, a restore drill,
+  and `docs/runbook.md` (incidents, rollback, kill switches, key rotation).
+- **Owner exit criterion:** five real products through the full pipeline in production, all
+  passing `/launch` and the scheduled launch check for 7 days. After that, revisit D-3 (human review)
+  per SRS §9.
+
+### Phase 4 status (2026-10-11)
+
+Built and verified locally: lint, types, tests and builds in all 58 Turborepo tasks, plus 40/40
+Playwright tests against production builds. No migration. Rollout in docs/deploy.md "Phase 4
+rollout"; procedures in docs/runbook.md.
+
+- **Sentry:** `@repo/observability` holds the shared options and PII scrubbers (13 tests) and the
+  header/CSP builder. Every SDK is inert without a DSN. Web loads the browser SDK after hydration
+  and only with a DSN, tunnelled through `/api/diag`. Server errors come from `instrumentation.ts`.
+  The API reports only unexpected 5xx. The worker reports final failures via `tasks.onFailure` with
+  task/run/job tags. Mobile uses `@sentry/react-native` (Expo plugin). One Sentry project per app
+  (existing `ai-review-*` projects), with a `service` tag on every event.
+- **Headers:** the web CSP allows exactly Turnstile, Plausible, YouTube-nocookie, R2 media and Sentry.
+  The CMS adds `noindex` and `no-store` (except hashed assets). The API uses Hono secure headers, with
+  a Scalar-compatible CSP on `/docs`. The review page is still prerendered.
+- **E2E (`apps/e2e`):** a deterministic seed (refuses non-`_e2e` databases) with two products,
+  go-link SubID and UTM fallback, published en/de review and comparison, a queued review, and an
+  admin with a fixed-secret TOTP. Desktop and Pixel 7 public specs, axe WCAG 2.1 AA on 9 pages, API
+  specs, and the CMS login → approve → publish → live flow. Lighthouse mobile: review 99/100/100/100,
+  home 100s. A CI `e2e` job runs Playwright, Lighthouse (`LH_MIN_PERF=80` on shared runners) and the
+  launch check against the seeded stack.
+- **Launch check (`packages/launch-check`):** zero-dependency Node CLI (`pnpm launch-check`), quick
+  and full modes, 30 unit tests. Production quick run: 13/13. Full run: 58 pass, 6 fail, all the
+  missing headers that this phase adds. `monitor.yml` runs quick every 15 minutes and full daily,
+  with one GitHub issue per outage (optional Telegram).
+- **Backups:** `backup.yml` runs a nightly `pg_dump` (public + drizzle schemas), age-encrypted, to a
+  separate R2 bucket. In-workflow retention keeps 35 days and always the newest 7. A monthly restore
+  drill restores into pgvector:pg17 and checks row counts.
+- **Acceptance (`@repo/core` acceptance/readiness, CMS `/launch`):** SRS §8 #1/#2/#5/#6 come from
+  stored data; #3/#4 point to the launch check and e2e. Plus a rollout checklist covering env, 2FA,
+  SRS §9 settings, launch categories, legal pages, and German readiness.
+
+Fixes made along the way: `setSetting` stored a top-level `null` as SQL NULL (saving "no default
+cost ceiling" failed). CMS sign-in/2FA forms now use `method="post"`, so a submit before hydration
+can't put the password in the URL. Conflicting robots meta on the 404 page. Footer/deals link text
+("Learn more") for Lighthouse SEO.
+
+Known gaps: worker stack traces stay minified until an esbuild Sentry plugin is added. A no-JS
+helpful vote gets no confirmation (the ISR page ignores `?voted=1`). Turnstile isn't exercised in
+e2e (no secret in CI).
+
 ---
 
 ## 10. Risks and mitigations

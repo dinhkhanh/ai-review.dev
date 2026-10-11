@@ -4,7 +4,10 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { useColorScheme } from "react-native";
 import { redirectSystemPath } from "../lib/links";
+import { initSentry, wrapRoot } from "../lib/sentry";
 import { AppProvider } from "../state/app-context";
+
+initSentry();
 
 /** Opens the article a price-alert push points at (its `url` is an aireview:// deep link). */
 function useNotificationRouting() {
@@ -21,7 +24,7 @@ function useNotificationRouting() {
   }, []);
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const scheme = useColorScheme();
   useNotificationRouting();
   return (
@@ -38,3 +41,5 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+export default wrapRoot(RootLayout);

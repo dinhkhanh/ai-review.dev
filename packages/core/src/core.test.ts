@@ -82,6 +82,13 @@ describe("settings", () => {
     // @ts-expect-error wrong type is rejected at compile time and runtime
     await expect(setSetting(ctx.db, "publishing.dailyCap", "lots")).rejects.toThrow();
   });
+
+  it("stores a top-level null as JSON null", async () => {
+    await setSetting(ctx.db, "costs.defaultCeilingUsd", null);
+    expect(await getSetting(ctx.db, "costs.defaultCeilingUsd")).toBeNull();
+    await setSetting(ctx.db, "costs.defaultCeilingUsd", 3);
+    expect(await getSetting(ctx.db, "costs.defaultCeilingUsd")).toBe(3);
+  });
 });
 
 describe("jobs, steps and the cost ledger", () => {

@@ -33,7 +33,7 @@ export const de: Messages = {
   footer: {
     affiliateNote:
       "Einige Links auf dieser Website sind Affiliate-Links (Werbung). Wenn Sie darüber kaufen, erhalten wir eventuell eine Provision – für Sie ändert sich der Preis nicht. Unsere Bewertungen beeinflusst das nie.",
-    learnMore: "Mehr erfahren",
+    learnMore: "Zu unserem Affiliate-Hinweis",
     rss: "RSS",
     copyright: (year, name) => `© ${year} ${name}`,
   },
@@ -146,7 +146,7 @@ export const de: Messages = {
       "Gutscheincodes, Testphasen und Garantien für Produkte, die wir getestet haben. Wir prüfen sie bei jeder Aktualisierung des Testberichts.",
     affiliate:
       "Angebotslinks sind Affiliate-Links (Werbung): Wir erhalten eventuell eine Provision, für Sie ändert sich der Preis nicht.",
-    learnMore: "Mehr erfahren",
+    learnMore: "Zu unserem Affiliate-Hinweis",
     empty: "Derzeit gibt es keine aktiven Angebote. Schauen Sie bald wieder vorbei.",
     other: "Sonstiges",
     getDeal: "Zum Angebot",

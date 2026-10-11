@@ -21,7 +21,9 @@
     "@repo/core": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/media": "workspace:*",
+    "@repo/observability": "workspace:*",
     "@scalar/hono-api-reference": "0.12.11",
+    "@sentry/node": "10.75.3",
     "hono": "4.13.13",
     "zod": "4.6.5"
   },
