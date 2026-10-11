@@ -14,7 +14,7 @@ export const metadata = { title: "Media" };
 export const maxDuration = 120;
 
 const PAGE_SIZE = 48;
-const select = "h-10 rounded-md border border-border bg-bg px-2 text-sm";
+const select = "h-10 max-w-full rounded-md border border-border bg-bg px-2 text-sm";
 
 type Search = { q?: string; kind?: string; origin?: string; product?: string; missingAlt?: string; page?: string };
 

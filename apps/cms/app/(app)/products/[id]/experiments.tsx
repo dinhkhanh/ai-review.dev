@@ -10,7 +10,7 @@ import { completeExperimentAction, startExperimentAction, stopExperimentAction }
 
 type Link = typeof affiliateLinks.$inferSelect;
 
-const select = "h-9 rounded-md border border-border bg-bg px-2 text-sm";
+const select = "h-9 max-w-full rounded-md border border-border bg-bg px-2 text-sm";
 
 /** A/B offers on the product page (FR-AFF-13): running and past tests, reports, start form. */
 export async function ExperimentsSection({ productId, links }: { productId: string; links: Link[] }) {

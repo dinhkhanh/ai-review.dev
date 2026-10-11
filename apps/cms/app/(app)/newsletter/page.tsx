@@ -9,7 +9,7 @@ import { buildIssueAction } from "./actions";
 
 export const metadata = { title: "Newsletter" };
 
-const select = "h-10 rounded-md border border-border bg-bg px-2 text-sm";
+const select = "h-10 max-w-full rounded-md border border-border bg-bg px-2 text-sm";
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /** Weekly digest (FR-WEB-9): subscribers per locale, issues, and building an issue on demand. */

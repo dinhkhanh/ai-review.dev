@@ -59,6 +59,12 @@ export default defineConfig({
   projects: [
     { name: "public", testMatch: /public|a11y|api/, use: { ...devices["Desktop Chrome"] } },
     { name: "public-mobile", testMatch: /public\.spec/, use: { ...devices["Pixel 7"] } },
+    // Narrowest common phone width; public pages and every CMS screen must not scroll sideways.
+    {
+      name: "mobile-layout",
+      testMatch: /mobile\.spec/,
+      use: { ...devices["Pixel 7"], viewport: { width: 360, height: 780 } },
+    },
     // The CMS flow publishes the queued review; it runs after the public specs read the seed.
     { name: "cms", testMatch: /cms/, dependencies: ["public", "public-mobile"], use: { ...devices["Desktop Chrome"] } },
   ],

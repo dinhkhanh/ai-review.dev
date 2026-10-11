@@ -67,7 +67,7 @@ export async function GuidePage({ type, slug }: { type: GuideType; slug: string 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(listJsonLd(data)) }} />
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-8 lg:grid-cols-[minmax(0,720px)_1fr]">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-4 py-8 lg:grid-cols-[minmax(0,720px)_1fr]">
         <article>
           <ArticleHeader
             data={data}

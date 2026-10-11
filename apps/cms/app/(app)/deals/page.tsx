@@ -10,7 +10,7 @@ import { DealForm } from "./deal-form";
 
 export const metadata = { title: "Deals" };
 
-const select = "h-10 rounded-md border border-border bg-bg px-2 text-sm";
+const select = "h-10 max-w-full rounded-md border border-border bg-bg px-2 text-sm";
 
 /** Deals and coupons (FR-WEB-8): shown on /deals and on review pages while active. */
 export default async function DealsPage() {
